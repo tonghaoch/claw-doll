@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DOLLS, rarityColor, rarityLabel } from '../data';
 import type { DollDef } from '../data';
-import { loadSave, saveNow, clearSave } from '../save';
+import { loadSave, saveNow, clearSave, newSave } from '../save';
 
 type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
@@ -35,6 +35,14 @@ export class GameScene extends Phaser.Scene {
 
   private started = false;
   private startOverlay!: Phaser.GameObjects.Container;
+
+  // SFX
+  private sfxEnabled = true;
+  private audio?: AudioContext;
+  private lastMoveSfxAt = 0;
+
+  // Hotbar
+  private hotbarIcons: Phaser.GameObjects.Image[] = [];
 
   // Round loop
   private readonly attemptsPerRound = 10;
@@ -99,6 +107,9 @@ export class GameScene extends Phaser.Scene {
 
     this.updateHud();
 
+    this.createHotbar();
+    this.updateHotbar();
+
     this.createStartOverlay();
     this.showToast('READY? PRESS SPACE', 1600, '#94a3b8');
   }
@@ -126,9 +137,11 @@ export class GameScene extends Phaser.Scene {
     }
     if (Phaser.Input.Keyboard.JustDown(this.keyR)) {
       clearSave();
-      this.save = loadSave();
-      this.showToast('已清空存档', 1200);
+      this.save = newSave();
+      saveNow(this.save);
+      this.showToast('RESET OK', 1200, '#94a3b8');
       this.updateHud();
+      this.updateHotbar();
     }
 
     this.updateDolls(dt);
@@ -249,8 +262,10 @@ export class GameScene extends Phaser.Scene {
     const boxRight = this.box.x + this.box.width - 30;
 
     if (this.state === 'idle') {
+      const moved = !!(this.cursors.left?.isDown || this.cursors.right?.isDown);
       if (this.cursors.left?.isDown) this.clawX -= speed * dt;
       if (this.cursors.right?.isDown) this.clawX += speed * dt;
+      if (moved) this.playMoveSfx();
 
       this.clawX = Phaser.Math.Clamp(this.clawX, boxLeft, boxRight);
 
@@ -266,6 +281,7 @@ export class GameScene extends Phaser.Scene {
         }
         this.attemptsLeft -= 1;
         this.updateHud();
+        this.playDropSfx();
 
         this.state = 'dropping';
         this.grabbed = undefined;
@@ -351,6 +367,7 @@ export class GameScene extends Phaser.Scene {
     } else {
       // Slip feedback: clamp it briefly then let it fall back.
       // slip sequence (brief attach then release)
+      this.playFailSfx();
       best.setVelocity(0, 0);
       const body = best.body as Phaser.Physics.Arcade.Body;
       body.enable = false;
@@ -416,6 +433,9 @@ export class GameScene extends Phaser.Scene {
 
     this.save.counts[def.id] = (this.save.counts[def.id] ?? 0) + 1;
     this.roundNew.add(def.id);
+
+    // Update recent list for hotbar
+    this.save.recent = [def.id, ...(this.save.recent ?? []).filter((x) => x !== def.id)].slice(0, 9);
     saveNow(this.save);
 
     // Celebrate by rarity
@@ -441,6 +461,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.showToast(`GET! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
+    this.playWinSfx(def);
+    this.animatePickupToHotbar(def);
+    this.updateHotbar();
     this.updateHud();
 
     // Luck bar drain
@@ -727,4 +750,162 @@ export class GameScene extends Phaser.Scene {
       this.aimLine.lineBetween(this.clawX, y, this.clawX, y2);
     }
   }
+
+  private ensureAudio() {
+    if (this.audio) return this.audio;
+    this.audio = new (window.AudioContext || (window as any).webkitAudioContext)();
+    return this.audio;
+  }
+
+  private beep(freq: number, ms: number, type: OscillatorType = 'square', gain = 0.05) {
+    if (!this.sfxEnabled) return;
+    const ctx = this.ensureAudio();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+
+    osc.connect(g);
+    g.connect(ctx.destination);
+
+    osc.start(t0);
+    osc.stop(t0 + ms / 1000 + 0.02);
+  }
+
+  private playMoveSfx() {
+    const now = this.time.now;
+    if (now - this.lastMoveSfxAt < 90) return;
+    this.lastMoveSfxAt = now;
+    this.beep(220, 35, 'square', 0.02);
+  }
+
+  private playDropSfx() {
+    this.beep(180, 70, 'square', 0.03);
+  }
+
+  private playFailSfx() {
+    this.beep(140, 90, 'sawtooth', 0.03);
+  }
+
+  private playWinSfx(def: DollDef) {
+    if (def.rarity === 'SSR') {
+      this.beep(880, 120, 'square', 0.06);
+      this.time.delayedCall(90, () => this.beep(1320, 140, 'square', 0.05));
+      return;
+    }
+    if (def.rarity === 'SR') {
+      this.beep(660, 90, 'square', 0.05);
+      this.time.delayedCall(70, () => this.beep(990, 110, 'square', 0.04));
+      return;
+    }
+    if (def.rarity === 'R') {
+      this.beep(520, 80, 'square', 0.04);
+      return;
+    }
+    this.beep(420, 70, 'square', 0.035);
+  }
+
+  private createHotbar() {
+    const cx = 480;
+    const y = 510;
+    const slots = 9;
+    const size = 36;
+    const pad = 6;
+    const totalW = slots * size + (slots - 1) * pad + 20;
+    const x0 = cx - totalW / 2;
+
+    const g = this.add.graphics();
+    g.setDepth(30);
+
+    // background plate
+    g.fillStyle(0x0b1224, 0.9);
+    g.fillRect(x0, y - 28, totalW, 56);
+    g.lineStyle(4, 0x0f172a, 1);
+    g.strokeRect(x0, y - 28, totalW, 56);
+    g.lineStyle(2, 0x475569, 1);
+    g.strokeRect(x0 + 4, y - 24, totalW - 8, 48);
+
+    const icons: Phaser.GameObjects.Image[] = [];
+
+    for (let i = 0; i < slots; i++) {
+      const sx = x0 + 10 + i * (size + pad);
+      const sy = y - size / 2;
+      // slot
+      const slot = this.add.rectangle(sx + size / 2, sy, size, size, 0x111827, 1).setDepth(31);
+      slot.setStrokeStyle(2, 0x64748b, 1);
+
+      const icon = this.add.image(sx + size / 2, sy, 'spark').setDepth(32).setVisible(false);
+      icons.push(icon);
+
+      // selected (first slot)
+      if (i === 0) {
+        this.add.rectangle(sx + size / 2, sy, size + 6, size + 6).setDepth(33).setStrokeStyle(3, 0xfacc15, 1);
+      }
+    }
+
+    const hint = this.add
+      .text(cx, y - 42, 'HOTBAR (recent)', {
+        fontFamily: '"Press Start 2P",sans-serif',
+        fontSize: '10px',
+        color: '#94a3b8',
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+
+    this.add.container(0, 0, [g, hint]).setDepth(30);
+    this.hotbarIcons = icons;
+  }
+
+  private updateHotbar() {
+    const ids = (this.save.recent ?? []).slice(0, 9);
+    for (let i = 0; i < this.hotbarIcons.length; i++) {
+      const icon = this.hotbarIcons[i];
+      const id = ids[i];
+      if (!id) {
+        icon.setVisible(false);
+        continue;
+      }
+      icon.setTexture(`doll:${id}`);
+      icon.setScale(1.6);
+      icon.setVisible(true);
+    }
+  }
+
+  private animatePickupToHotbar(def: DollDef) {
+    // Fly a small icon from claw to first hotbar slot
+    if (!this.hotbarIcons?.[0]) return;
+    const target = this.hotbarIcons[0];
+
+    const icon = this.add.image(this.clawX, this.clawY + 44, `doll:${def.id}`).setScale(1.8).setDepth(200);
+    icon.setTint(def.color);
+
+    this.tweens.add({
+      targets: icon,
+      x: target.x,
+      y: target.y,
+      scale: 1.4,
+      duration: 420,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        icon.destroy();
+        // pulse target
+        target.setScale(1.85);
+        this.tweens.add({
+          targets: target,
+          scale: 1.6,
+          duration: 180,
+          ease: 'Back.easeOut',
+        });
+      },
+    });
+  }
 }
+
