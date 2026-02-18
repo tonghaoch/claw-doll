@@ -36,6 +36,16 @@ export class GameScene extends Phaser.Scene {
   private started = false;
   private startOverlay!: Phaser.GameObjects.Container;
 
+  // Round loop
+  private readonly attemptsPerRound = 10;
+  private attemptsLeft = this.attemptsPerRound;
+  private roundNew = new Set<string>();
+  private roundOverlay?: Phaser.GameObjects.Container;
+
+  // Aim target highlight
+  private aimed?: DollSprite;
+  private aimedPulse?: Phaser.Tweens.Tween;
+
   private luckBonus = 0; // 0..0.4
   private failStreak = 0;
   private winStreak = 0;
@@ -96,10 +106,13 @@ export class GameScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
         this.started = true;
         this.startOverlay.setVisible(false);
+        this.startRound();
         this.showToast('←/→ 移动  Space 下爪  P 图鉴  R 清档', 2000, '#e5e7eb');
       }
       return;
     }
+
+    if (this.roundOverlay) return;
 
     if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       this.scene.launch('pokedex', { save: this.save });
@@ -236,17 +249,26 @@ export class GameScene extends Phaser.Scene {
 
       this.clawX = Phaser.Math.Clamp(this.clawX, boxLeft, boxRight);
 
-      // Aim line
+      // Aim line + target highlight
       this.drawAimLine();
       this.aimLine.setVisible(true);
+      this.updateAimedTarget();
 
       if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+        if (this.attemptsLeft <= 0) {
+          this.showRoundEndOverlay();
+          return;
+        }
+        this.attemptsLeft -= 1;
+        this.updateHud();
+
         this.state = 'dropping';
         this.grabbed = undefined;
         this.clawArms.setTexture('claw-arms-open');
       }
     } else {
       this.aimLine.setVisible(false);
+      this.clearAimedTarget();
     }
 
     const dropSpeed = 360;
@@ -374,6 +396,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.clawArms.setTexture('claw-arms-open');
+
+    if (this.attemptsLeft <= 0) {
+      this.showRoundEndOverlay();
+    }
   }
 
   private onWin(def: DollDef) {
@@ -384,6 +410,7 @@ export class GameScene extends Phaser.Scene {
     this.luckBonus = 0;
 
     this.save.counts[def.id] = (this.save.counts[def.id] ?? 0) + 1;
+    this.roundNew.add(def.id);
     saveNow(this.save);
 
     // Celebrate by rarity
@@ -437,7 +464,7 @@ export class GameScene extends Phaser.Scene {
     const luckPct = Math.round(this.luckBonus * 100);
 
     this.hudText.setText([
-      `图鉴: ${owned}/${total}  |  幸运: +${luckPct}%  |  连中: ${this.winStreak}  |  最佳连中: ${this.save.bestStreak}`,
+      `图鉴: ${owned}/${total}  |  次数: ${this.attemptsLeft}/${this.attemptsPerRound}  |  幸运: +${luckPct}%  |  连中: ${this.winStreak}  |  最佳连中: ${this.save.bestStreak}`,
       `提示: P 图鉴 | Space 下爪 | R 清档`,
     ]);
 
@@ -493,6 +520,130 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.startOverlay = this.add.container(0, 0, [panel, card, title, subtitle, how, start]).setDepth(100);
+  }
+
+  private startRound() {
+    this.attemptsLeft = this.attemptsPerRound;
+    this.roundNew = new Set();
+    this.winStreak = 0;
+    this.failStreak = 0;
+    this.luckBonus = 0;
+
+    if (this.roundOverlay) {
+      this.roundOverlay.destroy(true);
+      this.roundOverlay = undefined;
+    }
+
+    this.updateHud();
+  }
+
+  private showRoundEndOverlay() {
+    if (this.roundOverlay) return;
+
+    // Freeze input by forcing idle and ignoring update loop via started gate not used; simplest is keep started=true but block drops
+    this.state = 'idle';
+    this.clearAimedTarget();
+
+    const panel = this.add.graphics();
+    panel.fillStyle(0x0b1020, 0.88);
+    panel.fillRect(0, 0, 960, 540);
+
+    const card = this.add.graphics();
+    card.fillStyle(0x111827, 1);
+    card.fillRoundedRect(240, 160, 480, 220, 12);
+    card.lineStyle(2, 0x334155, 1);
+    card.strokeRoundedRect(240, 160, 480, 220, 12);
+
+    const newCount = this.roundNew.size;
+    const title = this.add.text(480, 205, '本局结束', { fontSize: '24px', color: '#e5e7eb' }).setOrigin(0.5);
+    const summary = this.add
+      .text(480, 250, `新获得: ${newCount}  |  最佳连中: ${this.save.bestStreak}`, {
+        fontSize: '14px',
+        color: '#cbd5e1',
+      })
+      .setOrigin(0.5);
+
+    const hint = this.add
+      .text(480, 320, 'Press Space to Retry', {
+        fontSize: '16px',
+        color: '#f1c40f',
+      })
+      .setOrigin(0.5);
+
+    this.tweens.add({
+      targets: hint,
+      alpha: { from: 0.35, to: 1 },
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, hint]).setDepth(120);
+
+    // One-shot key handler
+    const onKey = () => {
+      if (!this.roundOverlay) return;
+      this.roundOverlay.destroy(true);
+      this.roundOverlay = undefined;
+      this.startRound();
+    };
+    this.input.keyboard!.once('keydown-SPACE', onKey);
+  }
+
+  private updateAimedTarget() {
+    // Find best target near aim line
+    const clawRect = new Phaser.Geom.Rectangle(this.clawX - 28, this.box.y + 20, 56, this.box.height - 40);
+
+    let best: DollSprite | undefined;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    this.dolls.children.iterate((obj) => {
+      const spr = obj as DollSprite;
+      if (!spr?.active) return true;
+      if (spr === this.grabbed) return true;
+
+      const r = spr.getBounds();
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(clawRect, r)) return true;
+
+      const score = Math.abs(spr.x - this.clawX) + Math.abs(spr.y - (this.box.y + this.box.height / 2)) * 0.15;
+      if (score < bestScore) {
+        bestScore = score;
+        best = spr;
+      }
+      return true;
+    });
+
+    if (best === this.aimed) return;
+
+    this.clearAimedTarget();
+    if (!best) return;
+
+    this.aimed = best;
+    this.aimed.setTint(0xffffff);
+    this.aimed.setScale(2.18);
+
+    this.aimedPulse = this.tweens.add({
+      targets: this.aimed,
+      alpha: { from: 0.75, to: 1 },
+      duration: 360,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  private clearAimedTarget() {
+    if (this.aimedPulse) {
+      this.aimedPulse.stop();
+      this.aimedPulse = undefined;
+    }
+    if (this.aimed && this.aimed.active) {
+      this.aimed.clearTint();
+      this.aimed.setAlpha(1);
+      this.aimed.setScale(2);
+    }
+    this.aimed = undefined;
   }
 
   private showToast(text: string, ms: number, color: string = '#e5e7eb') {
