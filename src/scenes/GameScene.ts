@@ -44,6 +44,9 @@ export class GameScene extends Phaser.Scene {
 
   // Hotbar
   private hotbarIcons: Phaser.GameObjects.Image[] = [];
+  private hotbarSlots: Phaser.GameObjects.Image[] = [];
+  private hotbarSelectedBorder!: Phaser.GameObjects.Rectangle;
+  private hotbarSlotGlow?: Phaser.GameObjects.Rectangle;
 
   // Round loop
   private readonly attemptsPerRound = 10;
@@ -524,10 +527,10 @@ export class GameScene extends Phaser.Scene {
 
     // Celebrate by rarity
     const fx = {
-      N: { sparks: 4, shake: 0.002, dur: 60, flash: 0, chunks: 3, chunkSpread: 22 },
-      R: { sparks: 6, shake: 0.004, dur: 90, flash: 0, chunks: 6, chunkSpread: 32 },
-      SR: { sparks: 10, shake: 0.006, dur: 150, flash: 0, chunks: 12, chunkSpread: 44 },
-      SSR: { sparks: 16, shake: 0.010, dur: 300, flash: 0.55, chunks: 20, chunkSpread: 58 },
+      N: { sparks: 4, shake: 0.002, dur: 60, flash: 0, chunks: 3, chunkSpread: 22, ringSize: 30 },
+      R: { sparks: 6, shake: 0.004, dur: 90, flash: 0, chunks: 6, chunkSpread: 32, ringSize: 40 },
+      SR: { sparks: 10, shake: 0.006, dur: 150, flash: 0, chunks: 12, chunkSpread: 44, ringSize: 60 },
+      SSR: { sparks: 16, shake: 0.010, dur: 300, flash: 0.55, chunks: 20, chunkSpread: 58, ringSize: 80 },
     } as const;
     const f = fx[def.rarity];
 
@@ -535,14 +538,25 @@ export class GameScene extends Phaser.Scene {
     this.spawnSpark(this.clawX, this.clawY + 44, f.sparks, 28, def.color);
     this.spawnPixelChunks(this.clawX, this.clawY + 44, f.chunks, f.chunkSpread, def.color);
 
+    // Ring burst colored by rarity
+    const rarityHex = Phaser.Display.Color.HexStringToColor(rarityColor[def.rarity]).color;
+    this.spawnRingBurst(this.clawX, this.clawY + 44, f.ringSize, rarityHex);
+
     if (f.flash > 0) {
-      this.flash.setAlpha(f.flash);
+      // SSR: colorful screen tint instead of white
+      this.flash.setFillStyle(0x6a0dad, 1);
+      this.flash.setAlpha(f.flash * 0.6);
       this.tweens.add({
         targets: this.flash,
         alpha: 0,
-        duration: 420,
+        duration: 500,
         ease: 'Sine.easeOut',
       });
+    }
+
+    // SSR rising arpeggio beeps
+    if (def.rarity === 'SSR') {
+      this.playSSRArpeggio();
     }
 
     this.showToast(`GET! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
@@ -862,6 +876,27 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private spawnRingBurst(x: number, y: number, radius: number, color: number) {
+    const ring = this.add.graphics().setDepth(46);
+    const startR = 4;
+    ring.lineStyle(3, color, 0.8);
+    ring.strokeCircle(x, y, startR);
+    const obj = { r: startR, a: 0.8 };
+    this.tweens.add({
+      targets: obj,
+      r: radius,
+      a: 0,
+      duration: 400,
+      ease: 'Sine.easeOut',
+      onUpdate: () => {
+        ring.clear();
+        ring.lineStyle(Math.max(1, 3 - obj.r / radius * 2), color, obj.a);
+        ring.strokeCircle(x, y, obj.r);
+      },
+      onComplete: () => ring.destroy(),
+    });
+  }
+
   private drawAimLine() {
     this.aimLine.clear();
     this.aimLine.lineStyle(2, 0x94a3b8, 0.18);
@@ -939,6 +974,14 @@ export class GameScene extends Phaser.Scene {
     this.beep(420, 70, 'square', 0.035);
   }
 
+  private playSSRArpeggio() {
+    // Short rising arpeggio: C6-E6-G6-C7
+    const notes = [1047, 1319, 1568, 2093];
+    notes.forEach((freq, i) => {
+      this.time.delayedCall(i * 80, () => this.beep(freq, 100, 'square', 0.04));
+    });
+  }
+
   private playStartSfx() {
     this.beep(440, 80, 'square', 0.04);
     this.time.delayedCall(80, () => this.beep(660, 80, 'square', 0.04));
@@ -982,7 +1025,7 @@ export class GameScene extends Phaser.Scene {
     localStorage.setItem('claw-doll-sfx', this.sfxEnabled ? 'on' : 'off');
     this.showToast(this.sfxEnabled ? 'SFX ON' : 'SFX OFF', 800, '#94a3b8');
     if (this.sfxLabel) {
-      this.sfxLabel.setText(this.sfxEnabled ? 'SFX:ON' : 'SFX:OFF');
+      this.sfxLabel.setText(this.sfxEnabled ? '\u266b ON' : '\u266b OFF');
       this.sfxLabel.setStyle({ color: this.sfxEnabled ? '#22c55e' : '#ef4444' });
     }
   }
@@ -1001,20 +1044,34 @@ export class GameScene extends Phaser.Scene {
     bg.setDisplaySize(totalW, 56);
 
     const icons: Phaser.GameObjects.Image[] = [];
+    const slotImgs: Phaser.GameObjects.Image[] = [];
 
     for (let i = 0; i < slots; i++) {
       const sx = x0 + 10 + i * (size + pad);
       const sy = y - size / 2;
-      // Pixel-UI slot background (spritesheet frame)
-      this.add.image(sx + size / 2, sy, 'ui', 0)
+      // Pixel-UI slot background using ui spritesheet frame 2 (pressed button look)
+      const slotImg = this.add.image(sx + size / 2, sy, 'ui', 2)
         .setDisplaySize(size, size).setDepth(31).setTint(0x2a2a4a).setAlpha(0.9);
+      slotImgs.push(slotImg);
 
       const icon = this.add.image(sx + size / 2, sy, 'spark').setDepth(32).setVisible(false);
       icons.push(icon);
 
-      // selected highlight (first slot)
+      // selected highlight (first slot) — pulsing border
       if (i === 0) {
-        this.add.rectangle(sx + size / 2, sy, size + 6, size + 6).setDepth(33).setStrokeStyle(3, 0xfacc15, 1);
+        this.hotbarSelectedBorder = this.add.rectangle(sx + size / 2, sy, size + 6, size + 6)
+          .setDepth(33).setStrokeStyle(3, 0xfacc15, 1);
+        this.tweens.add({
+          targets: this.hotbarSelectedBorder,
+          alpha: { from: 0.5, to: 1 },
+          duration: 600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+        // Glow rect (hidden until pickup arrives)
+        this.hotbarSlotGlow = this.add.rectangle(sx + size / 2, sy, size + 10, size + 10, 0xfacc15, 0)
+          .setDepth(30);
       }
     }
 
@@ -1029,7 +1086,7 @@ export class GameScene extends Phaser.Scene {
 
     // Key hints near hotbar
     const keyHints = this.add
-      .text(cx, y + 32, '←/→ MOVE   SPACE DROP   P POKEDEX   R RESET   M MUTE', {
+      .text(cx, y + 32, '←/→ MOVE   SPACE DROP   P POKEDEX   R RESET', {
         fontFamily: '"Press Start 2P",sans-serif',
         fontSize: '8px',
         color: '#64748b',
@@ -1037,18 +1094,26 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(34);
 
-    // SFX indicator near hotbar (M to toggle)
+    // Clickable SFX button near hotbar
+    const sfxBtnBg = this.add.image(cx + totalW / 2 + 30, y, 'ui', 0)
+      .setDisplaySize(50, 24).setDepth(34).setTint(0x1e293b).setAlpha(0.95);
     this.sfxLabel = this.add
-      .text(cx + totalW / 2 + 14, y, this.sfxEnabled ? 'SFX:ON' : 'SFX:OFF', {
+      .text(cx + totalW / 2 + 30, y, this.sfxEnabled ? '\u266b ON' : '\u266b OFF', {
         fontFamily: '"Press Start 2P",sans-serif',
-        fontSize: '9px',
+        fontSize: '8px',
         color: this.sfxEnabled ? '#22c55e' : '#ef4444',
       })
-      .setOrigin(0, 0.5)
-      .setDepth(34);
+      .setOrigin(0.5, 0.5)
+      .setDepth(35);
+    // Make both clickable
+    sfxBtnBg.setInteractive({ useHandCursor: true });
+    sfxBtnBg.on('pointerdown', () => { this.toggleMute(); this.playBtnClickSfx(); });
+    sfxBtnBg.on('pointerover', () => { sfxBtnBg.setTint(0x334155); this.playBtnHoverSfx(); });
+    sfxBtnBg.on('pointerout', () => { sfxBtnBg.setTint(0x1e293b); });
 
     this.add.container(0, 0, [bg, hint, keyHints]).setDepth(30);
     this.hotbarIcons = icons;
+    this.hotbarSlots = slotImgs;
   }
 
   private updateHotbar() {
@@ -1096,6 +1161,22 @@ export class GameScene extends Phaser.Scene {
           duration: 180,
           ease: 'Back.easeOut',
         });
+        // Flash/glow the first slot on pickup arrival
+        if (this.hotbarSlotGlow) {
+          this.hotbarSlotGlow.setAlpha(0.6);
+          this.tweens.add({
+            targets: this.hotbarSlotGlow,
+            alpha: 0,
+            duration: 350,
+            ease: 'Sine.easeOut',
+          });
+        }
+        if (this.hotbarSlots[0]) {
+          this.hotbarSlots[0].setTint(0xfacc15);
+          this.time.delayedCall(250, () => {
+            if (this.hotbarSlots[0]) this.hotbarSlots[0].setTint(0x2a2a4a);
+          });
+        }
       },
     });
   }
