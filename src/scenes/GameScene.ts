@@ -7,6 +7,8 @@ type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
 type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
+const UI_FONT = '"Noto Sans SC", system-ui, sans-serif';
+
 export class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keySpace!: Phaser.Input.Keyboard.Key;
@@ -44,7 +46,7 @@ export class GameScene extends Phaser.Scene {
 
   // Hotbar
   private hotbarIcons: Phaser.GameObjects.Image[] = [];
-  private hotbarSlots: Phaser.GameObjects.Image[] = [];
+  private hotbarSlots: Phaser.GameObjects.Rectangle[] = [];
   private hotbarSelectedBorder!: Phaser.GameObjects.Rectangle;
   private hotbarSlotGlow?: Phaser.GameObjects.Rectangle;
 
@@ -89,30 +91,39 @@ export class GameScene extends Phaser.Scene {
     this.drawScene();
     this.spawnDolls();
 
-    // Minecraft-ish HUD panels (pixel border + dark fill)
-    this.add.rectangle(12, 12, 420, 42, 0x0b1224, 0.85).setOrigin(0, 0).setDepth(9);
-    this.add.rectangle(12, 12, 420, 42).setOrigin(0, 0).setStrokeStyle(2, 0x334155, 1).setDepth(9);
+    // Modern HUD card (semi-transparent rounded with shadow)
+    const hudCard = this.add.graphics().setDepth(9);
+    hudCard.fillStyle(0x0f172a, 0.72);
+    hudCard.fillRoundedRect(12, 10, 440, 46, 14);
+    // Subtle top highlight
+    hudCard.lineStyle(1, 0x475569, 0.35);
+    hudCard.strokeRoundedRect(12, 10, 440, 46, 14);
 
-    // Luck bar (XP bar style)
-    this.add.rectangle(16, 42, 200, 8, 0x111827, 1).setOrigin(0, 0.5).setDepth(10);
-    this.add.rectangle(16, 42, 200, 8).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569, 1).setDepth(12);
-    this.luckBarFill = this.add.rectangle(16, 42, 0, 5, 0x22c55e, 1).setOrigin(0, 0.5).setDepth(11);
+    // Luck bar (modern rounded)
+    const luckBg = this.add.graphics().setDepth(10);
+    luckBg.fillStyle(0x1e293b, 1);
+    luckBg.fillRoundedRect(16, 44, 200, 8, 4);
+    this.luckBarFill = this.add.rectangle(16, 48, 0, 6, 0x22c55e, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
       .text(480, 40, '', {
-        fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
-        fontSize: '16px',
-        color: '#e5e7eb',
+        fontFamily: UI_FONT,
+        fontStyle: 'bold',
+        fontSize: '20px',
+        color: '#f1f5f9',
         align: 'center',
+        shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,0.4)', blur: 6, fill: true },
       })
       .setOrigin(0.5)
       .setAlpha(0);
 
     this.hudText = this.add
-      .text(16, 18, '', {
-        fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
-        fontSize: '11px',
-        color: '#e5e7eb',
+      .text(24, 22, '', {
+        fontFamily: UI_FONT,
+        fontStyle: '600',
+        fontSize: '14px',
+        color: '#e2e8f0',
+        shadow: { offsetX: 0, offsetY: 1, color: 'rgba(0,0,0,0.3)', blur: 3, fill: true },
       })
       .setDepth(10);
 
@@ -124,7 +135,7 @@ export class GameScene extends Phaser.Scene {
     this.events.on('resume', () => this.playClosePokedexSfx());
 
     this.createStartOverlay();
-    this.showToast('READY? PRESS SPACE', 1600, '#94a3b8');
+    this.showToast('Ready? Press Space', 1600, '#94a3b8');
   }
 
   update(_t: number, dtMs: number) {
@@ -146,7 +157,7 @@ export class GameScene extends Phaser.Scene {
         this.startOverlay.setVisible(false);
         this.startRound();
         this.playStartSfx();
-        this.showToast('←/→ MOVE  SPACE DROP  P POKEDEX  R RESET  M MUTE', 2000, '#e5e7eb');
+        this.showToast('←/→ Move · Space Drop · P Pokédex · R Reset · M Mute', 2000, '#e5e7eb');
       }
       return;
     }
@@ -168,7 +179,7 @@ export class GameScene extends Phaser.Scene {
       clearSave();
       this.save = newSave();
       saveNow(this.save);
-      this.showToast('RESET OK', 1200, '#94a3b8');
+      this.showToast('Reset OK', 1200, '#94a3b8');
       this.updateHud();
       this.updateHotbar();
     }
@@ -591,7 +602,7 @@ export class GameScene extends Phaser.Scene {
     const luckPct = Math.round(this.luckBonus * 100);
 
     this.hudText.setText(
-      `POKEDEX ${owned}/${total}  TRY ${this.attemptsLeft}/${this.attemptsPerRound}  LUCK +${luckPct}%  STREAK ${this.winStreak}  BEST ${this.save.bestStreak}`,
+      `Pokédex ${owned}/${total}  ·  Try ${this.attemptsLeft}/${this.attemptsPerRound}  ·  Luck +${luckPct}%  ·  Streak ${this.winStreak}  ·  Best ${this.save.bestStreak}`,
     );
 
     // luck bar
@@ -610,44 +621,53 @@ export class GameScene extends Phaser.Scene {
     panel.fillStyle(0x000000, 0.55);
     panel.fillRect(0, 0, 960, 540);
 
-    // Pixel-style card (Minecraft-ish)
+    // Modern card with rounded corners and shadow
     const card = this.add.graphics();
     const x = 240;
-    const y = 150;
+    const y = 140;
     const w = 480;
-    const h = 240;
-    card.fillStyle(0x0b1224, 0.96);
-    card.fillRect(x, y, w, h);
-    // outer border
-    card.lineStyle(4, 0x0f172a, 1);
-    card.strokeRect(x, y, w, h);
-    // inner border highlight
-    card.lineStyle(2, 0x475569, 1);
-    card.strokeRect(x + 4, y + 4, w - 8, h - 8);
+    const h = 260;
+    // Drop shadow
+    card.fillStyle(0x000000, 0.25);
+    card.fillRoundedRect(x + 4, y + 6, w, h, 20);
+    // Card body
+    card.fillStyle(0x111827, 0.96);
+    card.fillRoundedRect(x, y, w, h, 20);
+    // Subtle border
+    card.lineStyle(1, 0x334155, 0.5);
+    card.strokeRoundedRect(x, y, w, h, 20);
 
-    const title = this.add.text(480, 190, 'claw-doll', {
-      fontFamily: '"Press Start 2P",sans-serif',
-      fontSize: '28px',
-      color: '#e5e7eb',
+    const title = this.add.text(480, 185, 'Claw Doll', {
+      fontFamily: UI_FONT,
+      fontStyle: 'bold',
+      fontSize: '36px',
+      color: '#f1f5f9',
+      shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,0.3)', blur: 4, fill: true },
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(480, 232, 'pixel claw · collect dolls', {
-      fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
-      fontSize: '14px',
+    const subtitle = this.add.text(480, 225, 'Collect adorable dolls with the claw', {
+      fontFamily: UI_FONT,
+      fontSize: '16px',
       color: '#94a3b8',
     }).setOrigin(0.5);
 
-    const how = this.add.text(480, 280, '←/→ move    Space drop\nP pokedex    R reset    M mute', {
-      fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
+    const how = this.add.text(480, 270, '←/→ move    Space drop\nP pokédex    R reset    M mute', {
+      fontFamily: UI_FONT,
       fontSize: '14px',
       color: '#cbd5e1',
       align: 'center',
+      lineSpacing: 4,
     }).setOrigin(0.5);
 
-    const start = this.add.text(480, 350, 'Press Space to Start', {
-      fontFamily: '"Press Start 2P",sans-serif',
+    // Primary button style
+    const btnGfx = this.add.graphics();
+    btnGfx.fillStyle(0xfacc15, 1);
+    btnGfx.fillRoundedRect(400, 330, 160, 44, 22);
+    const start = this.add.text(480, 352, 'Press Space', {
+      fontFamily: UI_FONT,
+      fontStyle: 'bold',
       fontSize: '16px',
-      color: '#facc15',
+      color: '#1c1917',
     }).setOrigin(0.5);
 
     this.tweens.add({
@@ -659,7 +679,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    this.startOverlay = this.add.container(0, 0, [panel, card, title, subtitle, how, start]).setDepth(100);
+    this.startOverlay = this.add.container(0, 0, [panel, card, title, subtitle, how, btnGfx, start]).setDepth(100);
   }
 
   private startRound() {
@@ -689,30 +709,41 @@ export class GameScene extends Phaser.Scene {
     panel.fillRect(0, 0, 960, 540);
 
     const card = this.add.graphics();
+    // Drop shadow
+    card.fillStyle(0x000000, 0.25);
+    card.fillRoundedRect(244, 166, 480, 220, 20);
+    // Card body
     card.fillStyle(0x111827, 1);
-    card.fillRoundedRect(240, 160, 480, 220, 12);
-    card.lineStyle(2, 0x334155, 1);
-    card.strokeRoundedRect(240, 160, 480, 220, 12);
+    card.fillRoundedRect(240, 160, 480, 220, 20);
+    card.lineStyle(1, 0x334155, 0.5);
+    card.strokeRoundedRect(240, 160, 480, 220, 20);
 
     const newCount = this.roundNew.size;
-    const title = this.add.text(480, 205, 'ROUND OVER', {
-      fontFamily: '"Press Start 2P",sans-serif',
-      fontSize: '22px',
-      color: '#e5e7eb',
+    const title = this.add.text(480, 205, 'Round Over', {
+      fontFamily: UI_FONT,
+      fontStyle: 'bold',
+      fontSize: '28px',
+      color: '#f1f5f9',
+      shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,0.3)', blur: 4, fill: true },
     }).setOrigin(0.5);
     const summary = this.add
-      .text(480, 250, `NEW: ${newCount}   |   BEST STREAK: ${this.save.bestStreak}`, {
-        fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
-        fontSize: '12px',
+      .text(480, 250, `New: ${newCount}   ·   Best streak: ${this.save.bestStreak}`, {
+        fontFamily: UI_FONT,
+        fontSize: '15px',
         color: '#cbd5e1',
       })
       .setOrigin(0.5);
 
+    // Primary button
+    const btnGfx = this.add.graphics();
+    btnGfx.fillStyle(0xfacc15, 1);
+    btnGfx.fillRoundedRect(400, 300, 160, 44, 22);
     const hint = this.add
-      .text(480, 320, 'Press Space to Retry', {
-        fontFamily: '"Press Start 2P",sans-serif',
-        fontSize: '14px',
-        color: '#facc15',
+      .text(480, 322, 'Press Space', {
+        fontFamily: UI_FONT,
+        fontStyle: 'bold',
+        fontSize: '16px',
+        color: '#1c1917',
       })
       .setOrigin(0.5);
 
@@ -725,7 +756,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, hint]).setDepth(120);
+    this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, btnGfx, hint]).setDepth(120);
     this.playRoundOverSfx();
 
     // One-shot key handler
@@ -799,19 +830,23 @@ export class GameScene extends Phaser.Scene {
     this.toastText.setStyle({ color });
     this.toastText.setAlpha(1);
     this.toastText.setScale(1);
+    this.toastText.setY(48);
 
     this.tweens.killTweensOf(this.toastText);
+    // Subtle slide-down entrance
     this.tweens.add({
       targets: this.toastText,
-      scale: { from: 1.4, to: 1.0 },
-      duration: 200,
-      ease: 'Back.easeOut',
+      y: { from: 30, to: 40 },
+      alpha: { from: 0, to: 1 },
+      duration: 250,
+      ease: 'Cubic.easeOut',
     });
     this.tweens.add({
       targets: this.toastText,
       alpha: 0,
+      y: 36,
       delay: ms,
-      duration: 350,
+      duration: 400,
       ease: 'Sine.easeIn',
     });
   }
@@ -1023,9 +1058,9 @@ export class GameScene extends Phaser.Scene {
   private toggleMute() {
     this.sfxEnabled = !this.sfxEnabled;
     localStorage.setItem('claw-doll-sfx', this.sfxEnabled ? 'on' : 'off');
-    this.showToast(this.sfxEnabled ? 'SFX ON' : 'SFX OFF', 800, '#94a3b8');
+    this.showToast(this.sfxEnabled ? 'SFX On' : 'SFX Off', 800, '#94a3b8');
     if (this.sfxLabel) {
-      this.sfxLabel.setText(this.sfxEnabled ? '\u266b ON' : '\u266b OFF');
+      this.sfxLabel.setText(this.sfxEnabled ? '\u266b On' : '\u266b Off');
       this.sfxLabel.setStyle({ color: this.sfxEnabled ? '#22c55e' : '#ef4444' });
     }
   }
@@ -1039,19 +1074,32 @@ export class GameScene extends Phaser.Scene {
     const totalW = slots * size + (slots - 1) * pad + 20;
     const x0 = cx - totalW / 2;
 
-    // Kenney panel background (scaled)
-    const bg = this.add.image(cx, y, 'panel:space').setDepth(30);
-    bg.setDisplaySize(totalW, 56);
+    // Modern pill hotbar background with drop shadow
+    const bgGfx = this.add.graphics().setDepth(30);
+    // Shadow
+    bgGfx.fillStyle(0x000000, 0.2);
+    bgGfx.fillRoundedRect(cx - totalW / 2 + 2, y - 28 + 3, totalW, 56, 28);
+    // Pill body
+    bgGfx.fillStyle(0x1e293b, 0.88);
+    bgGfx.fillRoundedRect(cx - totalW / 2, y - 28, totalW, 56, 28);
+    bgGfx.lineStyle(1, 0x334155, 0.4);
+    bgGfx.strokeRoundedRect(cx - totalW / 2, y - 28, totalW, 56, 28);
 
     const icons: Phaser.GameObjects.Image[] = [];
-    const slotImgs: Phaser.GameObjects.Image[] = [];
+    const slotImgs: Phaser.GameObjects.Rectangle[] = [];
 
     for (let i = 0; i < slots; i++) {
       const sx = x0 + 10 + i * (size + pad);
       const sy = y - size / 2;
-      // Pixel-UI slot background using ui spritesheet frame 2 (pressed button look)
-      const slotImg = this.add.image(sx + size / 2, sy, 'ui', 2)
-        .setDisplaySize(size, size).setDepth(31).setTint(0x2a2a4a).setAlpha(0.9);
+      // Modern rounded slot background
+      const slotGfx = this.add.graphics().setDepth(31);
+      slotGfx.fillStyle(0x0f172a, 0.85);
+      slotGfx.fillRoundedRect(sx, sy - size / 2, size, size, 8);
+      slotGfx.lineStyle(1, 0x475569, 0.3);
+      slotGfx.strokeRoundedRect(sx, sy - size / 2, size, size, 8);
+      // Keep reference as image placeholder (use a small rect for tint animation)
+      const slotImg = this.add.rectangle(sx + size / 2, sy, size - 2, size - 2, 0x0f172a, 0)
+        .setDepth(31);
       slotImgs.push(slotImg);
 
       const icon = this.add.image(sx + size / 2, sy, 'spark').setDepth(32).setVisible(false);
@@ -1059,26 +1107,26 @@ export class GameScene extends Phaser.Scene {
 
       // selected highlight (first slot) — pulsing border
       if (i === 0) {
-        this.hotbarSelectedBorder = this.add.rectangle(sx + size / 2, sy, size + 6, size + 6)
-          .setDepth(33).setStrokeStyle(3, 0xfacc15, 1);
+        this.hotbarSelectedBorder = this.add.rectangle(sx + size / 2, sy, size + 4, size + 4)
+          .setDepth(33).setStrokeStyle(2, 0xfacc15, 1);
         this.tweens.add({
           targets: this.hotbarSelectedBorder,
-          alpha: { from: 0.5, to: 1 },
-          duration: 600,
+          alpha: { from: 0.45, to: 1 },
+          duration: 700,
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut',
         });
-        // Glow rect (hidden until pickup arrives)
-        this.hotbarSlotGlow = this.add.rectangle(sx + size / 2, sy, size + 10, size + 10, 0xfacc15, 0)
+        this.hotbarSlotGlow = this.add.rectangle(sx + size / 2, sy, size + 8, size + 8, 0xfacc15, 0)
           .setDepth(30);
       }
     }
 
     const hint = this.add
-      .text(cx, y - 42, 'HOTBAR (recent)', {
-        fontFamily: '"Press Start 2P",sans-serif',
-        fontSize: '10px',
+      .text(cx, y - 42, 'Recent', {
+        fontFamily: UI_FONT,
+        fontStyle: '600',
+        fontSize: '12px',
         color: '#94a3b8',
       })
       .setOrigin(0.5)
@@ -1086,21 +1134,28 @@ export class GameScene extends Phaser.Scene {
 
     // Key hints near hotbar
     const keyHints = this.add
-      .text(cx, y + 32, '←/→ MOVE   SPACE DROP   P POKEDEX   R RESET', {
-        fontFamily: '"Press Start 2P",sans-serif',
-        fontSize: '8px',
+      .text(cx, y + 34, '←/→ Move · Space Drop · P Pokédex · R Reset', {
+        fontFamily: UI_FONT,
+        fontSize: '11px',
         color: '#64748b',
       })
       .setOrigin(0.5)
       .setDepth(34);
 
-    // Clickable SFX button near hotbar
-    const sfxBtnBg = this.add.image(cx + totalW / 2 + 30, y, 'ui', 0)
-      .setDisplaySize(50, 24).setDepth(34).setTint(0x1e293b).setAlpha(0.95);
+    // Clickable SFX button — modern pill
+    const sfxBtnGfx = this.add.graphics().setDepth(34);
+    sfxBtnGfx.fillStyle(0x1e293b, 0.9);
+    sfxBtnGfx.fillRoundedRect(cx + totalW / 2 + 6, y - 14, 52, 28, 14);
+    sfxBtnGfx.lineStyle(1, 0x334155, 0.4);
+    sfxBtnGfx.strokeRoundedRect(cx + totalW / 2 + 6, y - 14, 52, 28, 14);
+    // Invisible hit area over the pill
+    const sfxBtnBg = this.add.rectangle(cx + totalW / 2 + 32, y, 52, 28, 0x000000, 0)
+      .setDepth(34);
     this.sfxLabel = this.add
-      .text(cx + totalW / 2 + 30, y, this.sfxEnabled ? '\u266b ON' : '\u266b OFF', {
-        fontFamily: '"Press Start 2P",sans-serif',
-        fontSize: '8px',
+      .text(cx + totalW / 2 + 32, y, this.sfxEnabled ? '\u266b On' : '\u266b Off', {
+        fontFamily: UI_FONT,
+        fontStyle: '600',
+        fontSize: '11px',
         color: this.sfxEnabled ? '#22c55e' : '#ef4444',
       })
       .setOrigin(0.5, 0.5)
@@ -1108,10 +1163,10 @@ export class GameScene extends Phaser.Scene {
     // Make both clickable
     sfxBtnBg.setInteractive({ useHandCursor: true });
     sfxBtnBg.on('pointerdown', () => { this.toggleMute(); this.playBtnClickSfx(); });
-    sfxBtnBg.on('pointerover', () => { sfxBtnBg.setTint(0x334155); this.playBtnHoverSfx(); });
-    sfxBtnBg.on('pointerout', () => { sfxBtnBg.setTint(0x1e293b); });
+    sfxBtnBg.on('pointerover', () => { sfxBtnBg.setAlpha(0.3); this.playBtnHoverSfx(); });
+    sfxBtnBg.on('pointerout', () => { sfxBtnBg.setAlpha(0); });
 
-    this.add.container(0, 0, [bg, hint, keyHints]).setDepth(30);
+    this.add.container(0, 0, [bgGfx, hint, keyHints]).setDepth(30);
     this.hotbarIcons = icons;
     this.hotbarSlots = slotImgs;
   }
@@ -1172,9 +1227,9 @@ export class GameScene extends Phaser.Scene {
           });
         }
         if (this.hotbarSlots[0]) {
-          this.hotbarSlots[0].setTint(0xfacc15);
+          this.hotbarSlots[0].setFillStyle(0xfacc15, 0.3);
           this.time.delayedCall(250, () => {
-            if (this.hotbarSlots[0]) this.hotbarSlots[0].setTint(0x2a2a4a);
+            if (this.hotbarSlots[0]) this.hotbarSlots[0].setFillStyle(0x0f172a, 0);
           });
         }
       },
