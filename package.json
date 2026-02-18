@@ -13,6 +13,8 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
+    "@fontsource/noto-sans-sc": "^5.2.9",
+    "@fontsource/press-start-2p": "^5.2.7",
     "phaser": "^3.90.0"
   }
 }

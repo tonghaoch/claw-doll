@@ -1,5 +1,13 @@
 :root {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Bundle fonts via @fontsource to avoid tofu (□) squares */
+  font-family:
+    "Noto Sans SC",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
   line-height: 1.2;
   font-weight: 400;
 

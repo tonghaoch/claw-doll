@@ -1,4 +1,6 @@
 import './style.css';
+import '@fontsource/press-start-2p';
+import '@fontsource/noto-sans-sc';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';

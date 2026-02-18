@@ -70,14 +70,18 @@ export class GameScene extends Phaser.Scene {
     this.drawScene();
     this.spawnDolls();
 
-    // Luck bar (visual pity)
-    this.add.rectangle(16, 54, 140, 8, 0x1f2937, 1).setOrigin(0, 0.5).setDepth(10);
-    // subtle border to make it read better
-    this.add.rectangle(16, 54, 140, 8).setOrigin(0, 0.5).setStrokeStyle(2, 0x334155, 1).setDepth(12);
-    this.luckBarFill = this.add.rectangle(16, 54, 0, 8, 0x22d3ee, 1).setOrigin(0, 0.5).setDepth(11);
+    // Minecraft-ish HUD panels (pixel border + dark fill)
+    this.add.rectangle(12, 12, 420, 62, 0x0b1224, 0.85).setOrigin(0, 0).setDepth(9);
+    this.add.rectangle(12, 12, 420, 62).setOrigin(0, 0).setStrokeStyle(2, 0x334155, 1).setDepth(9);
+
+    // Luck bar (XP bar style)
+    this.add.rectangle(16, 58, 200, 10, 0x111827, 1).setOrigin(0, 0.5).setDepth(10);
+    this.add.rectangle(16, 58, 200, 10).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569, 1).setDepth(12);
+    this.luckBarFill = this.add.rectangle(16, 58, 0, 6, 0x22c55e, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
       .text(480, 40, '', {
+        fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
         fontSize: '16px',
         color: '#e5e7eb',
         align: 'center',
@@ -87,6 +91,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hudText = this.add
       .text(16, 16, '', {
+        fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
         fontSize: '14px',
         color: '#e5e7eb',
       })
@@ -95,7 +100,7 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
 
     this.createStartOverlay();
-    this.showToast('准备好了吗？按 Space 开始', 1600, '#94a3b8');
+    this.showToast('READY? PRESS SPACE', 1600, '#94a3b8');
   }
 
   update(_t: number, dtMs: number) {
@@ -107,7 +112,7 @@ export class GameScene extends Phaser.Scene {
         this.started = true;
         this.startOverlay.setVisible(false);
         this.startRound();
-        this.showToast('←/→ 移动  Space 下爪  P 图鉴  R 清档', 2000, '#e5e7eb');
+        this.showToast('←/→ MOVE  SPACE DROP  P POKEDEX  R RESET', 2000, '#e5e7eb');
       }
       return;
     }
@@ -464,50 +469,64 @@ export class GameScene extends Phaser.Scene {
     const luckPct = Math.round(this.luckBonus * 100);
 
     this.hudText.setText([
-      `图鉴: ${owned}/${total}  |  次数: ${this.attemptsLeft}/${this.attemptsPerRound}  |  幸运: +${luckPct}%  |  连中: ${this.winStreak}  |  最佳连中: ${this.save.bestStreak}`,
-      `提示: P 图鉴 | Space 下爪 | R 清档`,
+      `POKEDEX ${owned}/${total}   |   TRY ${this.attemptsLeft}/${this.attemptsPerRound}   |   LUCK +${luckPct}%   |   STREAK ${this.winStreak}   |   BEST ${this.save.bestStreak}`,
+      `P POKEDEX  |  SPACE DROP  |  R RESET`,
     ]);
 
     // luck bar
     const max = 0.35;
-    const fullW = 140;
+    const fullW = 200;
     const ratio = Phaser.Math.Clamp(this.luckBonus / max, 0, 1);
-    this.luckBarFill.width = Math.round(fullW * ratio);
-    this.luckBarFill.fillColor = this.luckBonus > 0.25 ? 0xf59e0b : 0x22d3ee;
+    this.luckBarFill.width = Math.max(0, Math.round(fullW * ratio));
+    // green -> yellow near max
+    this.luckBarFill.fillColor = this.luckBonus > 0.25 ? 0xf59e0b : 0x22c55e;
   }
 
   private createStartOverlay() {
     this.started = false;
 
     const panel = this.add.graphics();
-    panel.fillStyle(0x0b1020, 0.88);
+    panel.fillStyle(0x000000, 0.55);
     panel.fillRect(0, 0, 960, 540);
 
+    // Pixel-style card (Minecraft-ish)
     const card = this.add.graphics();
-    card.fillStyle(0x111827, 1);
-    card.fillRoundedRect(240, 150, 480, 240, 12);
-    card.lineStyle(2, 0x334155, 1);
-    card.strokeRoundedRect(240, 150, 480, 240, 12);
+    const x = 240;
+    const y = 150;
+    const w = 480;
+    const h = 240;
+    card.fillStyle(0x0b1224, 0.96);
+    card.fillRect(x, y, w, h);
+    // outer border
+    card.lineStyle(4, 0x0f172a, 1);
+    card.strokeRect(x, y, w, h);
+    // inner border highlight
+    card.lineStyle(2, 0x475569, 1);
+    card.strokeRect(x + 4, y + 4, w - 8, h - 8);
 
     const title = this.add.text(480, 190, 'claw-doll', {
+      fontFamily: '"Press Start 2P",sans-serif',
       fontSize: '28px',
       color: '#e5e7eb',
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(480, 232, '像素抓娃娃 · 收集图鉴', {
+    const subtitle = this.add.text(480, 232, 'pixel claw · collect dolls', {
+      fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
       fontSize: '14px',
       color: '#94a3b8',
     }).setOrigin(0.5);
 
-    const how = this.add.text(480, 280, '←/→ 移动    Space 下爪\nP 图鉴    R 清档', {
+    const how = this.add.text(480, 280, '←/→ move    Space drop\nP pokedex    R reset', {
+      fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
       fontSize: '14px',
       color: '#cbd5e1',
       align: 'center',
     }).setOrigin(0.5);
 
     const start = this.add.text(480, 350, 'Press Space to Start', {
+      fontFamily: '"Press Start 2P",sans-serif',
       fontSize: '16px',
-      color: '#f1c40f',
+      color: '#facc15',
     }).setOrigin(0.5);
 
     this.tweens.add({
@@ -555,18 +574,24 @@ export class GameScene extends Phaser.Scene {
     card.strokeRoundedRect(240, 160, 480, 220, 12);
 
     const newCount = this.roundNew.size;
-    const title = this.add.text(480, 205, '本局结束', { fontSize: '24px', color: '#e5e7eb' }).setOrigin(0.5);
+    const title = this.add.text(480, 205, 'ROUND OVER', {
+      fontFamily: '"Press Start 2P",sans-serif',
+      fontSize: '22px',
+      color: '#e5e7eb',
+    }).setOrigin(0.5);
     const summary = this.add
-      .text(480, 250, `新获得: ${newCount}  |  最佳连中: ${this.save.bestStreak}`, {
-        fontSize: '14px',
+      .text(480, 250, `NEW: ${newCount}   |   BEST STREAK: ${this.save.bestStreak}`, {
+        fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
+        fontSize: '12px',
         color: '#cbd5e1',
       })
       .setOrigin(0.5);
 
     const hint = this.add
       .text(480, 320, 'Press Space to Retry', {
-        fontSize: '16px',
-        color: '#f1c40f',
+        fontFamily: '"Press Start 2P",sans-serif',
+        fontSize: '14px',
+        color: '#facc15',
       })
       .setOrigin(0.5);
 
