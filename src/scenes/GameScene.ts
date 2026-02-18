@@ -33,6 +33,9 @@ export class GameScene extends Phaser.Scene {
   private state: ClawState = 'idle';
   private grabbed?: DollSprite;
 
+  private started = false;
+  private startOverlay!: Phaser.GameObjects.Container;
+
   private luckBonus = 0; // 0..0.4
   private failStreak = 0;
   private winStreak = 0;
@@ -81,11 +84,22 @@ export class GameScene extends Phaser.Scene {
 
     this.updateHud();
 
-    this.showToast('←/→ 移动  Space 下爪  P 图鉴  R 清档', 2000);
+    this.createStartOverlay();
+    this.showToast('准备好了吗？按 Space 开始', 1600, '#94a3b8');
   }
 
   update(_t: number, dtMs: number) {
     const dt = dtMs / 1000;
+
+    // Start gate
+    if (!this.started) {
+      if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+        this.started = true;
+        this.startOverlay.setVisible(false);
+        this.showToast('←/→ 移动  Space 下爪  P 图鉴  R 清档', 2000, '#e5e7eb');
+      }
+      return;
+    }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       this.scene.launch('pokedex', { save: this.save });
@@ -308,7 +322,32 @@ export class GameScene extends Phaser.Scene {
       this.grabbed = best;
       this.onWin(best.def);
     } else {
-      this.onFail(`差一点：${best.def.name}`);
+      // Slip feedback: clamp it briefly then let it fall back.
+      // slip sequence (brief attach then release)
+      best.setVelocity(0, 0);
+      const body = best.body as Phaser.Physics.Arcade.Body;
+      body.enable = false;
+      this.grabbed = best;
+
+      this.cameras.main.shake(70, 0.004);
+      this.showToast(`滑了！${best.def.name}`, 900, '#6b7280');
+
+      // Release soon so finishGrab() won't remove it.
+      this.time.delayedCall(120, () => {
+        if (!this.grabbed || this.grabbed !== best) return;
+        const b = best.body as Phaser.Physics.Arcade.Body;
+        b.enable = true;
+        // push it back into the box
+        best.setVelocity(Phaser.Math.Between(-90, 90), Phaser.Math.Between(60, 140));
+        this.grabbed = undefined;
+        // released
+        this.clawArms.setTexture('claw-arms-open');
+      });
+
+      this.failStreak += 1;
+      this.winStreak = 0;
+      this.luckBonus = Phaser.Math.Clamp(this.luckBonus + 0.04, 0, 0.35);
+      this.updateHud();
     }
   }
 
@@ -408,6 +447,52 @@ export class GameScene extends Phaser.Scene {
     const ratio = Phaser.Math.Clamp(this.luckBonus / max, 0, 1);
     this.luckBarFill.width = Math.round(fullW * ratio);
     this.luckBarFill.fillColor = this.luckBonus > 0.25 ? 0xf59e0b : 0x22d3ee;
+  }
+
+  private createStartOverlay() {
+    this.started = false;
+
+    const panel = this.add.graphics();
+    panel.fillStyle(0x0b1020, 0.88);
+    panel.fillRect(0, 0, 960, 540);
+
+    const card = this.add.graphics();
+    card.fillStyle(0x111827, 1);
+    card.fillRoundedRect(240, 150, 480, 240, 12);
+    card.lineStyle(2, 0x334155, 1);
+    card.strokeRoundedRect(240, 150, 480, 240, 12);
+
+    const title = this.add.text(480, 190, 'claw-doll', {
+      fontSize: '28px',
+      color: '#e5e7eb',
+    }).setOrigin(0.5);
+
+    const subtitle = this.add.text(480, 232, '像素抓娃娃 · 收集图鉴', {
+      fontSize: '14px',
+      color: '#94a3b8',
+    }).setOrigin(0.5);
+
+    const how = this.add.text(480, 280, '←/→ 移动    Space 下爪\nP 图鉴    R 清档', {
+      fontSize: '14px',
+      color: '#cbd5e1',
+      align: 'center',
+    }).setOrigin(0.5);
+
+    const start = this.add.text(480, 350, 'Press Space to Start', {
+      fontSize: '16px',
+      color: '#f1c40f',
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: start,
+      alpha: { from: 0.35, to: 1 },
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    this.startOverlay = this.add.container(0, 0, [panel, card, title, subtitle, how, start]).setDepth(100);
   }
 
   private showToast(text: string, ms: number, color: string = '#e5e7eb') {
