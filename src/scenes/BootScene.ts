@@ -1,13 +1,33 @@
 import Phaser from 'phaser';
-import { DOLLS } from '../data';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('boot');
   }
 
+  preload() {
+    // Kenney assets (CC0)
+    this.load.spritesheet('ui', 'assets/kenney/pixel-ui-pack/Spritesheet/UIpackSheet_transparent.png', {
+      frameWidth: 16,
+      frameHeight: 16,
+      margin: 2,
+      spacing: 2,
+    });
+
+    this.load.spritesheet('dolls', 'assets/kenney/roguelike-characters/Spritesheet/roguelikeChar_transparent.png', {
+      frameWidth: 16,
+      frameHeight: 16,
+      margin: 1,
+      spacing: 1,
+    });
+
+    // 9-slice panels we can scale freely
+    this.load.image('panel:space', 'assets/kenney/pixel-ui-pack/9-Slice/space.png');
+    this.load.image('panel:space_inlay', 'assets/kenney/pixel-ui-pack/9-Slice/space_inlay.png');
+  }
+
   create() {
-    // Simple pixel textures generated at runtime.
+    // Some pixel textures generated at runtime.
     this.createTextures();
     this.scene.start('game');
   }
@@ -45,24 +65,6 @@ export class BootScene extends Phaser.Scene {
       g.fillRect(18, 0, 6, 16);
       g.fillRect(10, 14, 10, 2);
       g.generateTexture('claw-arms-closed', 24, 16);
-      g.destroy();
-    }
-
-    // Dolls textures
-    for (const d of DOLLS) {
-      const g = this.add.graphics();
-      // outline
-      g.fillStyle(0x111827, 1);
-      g.fillRect(0, 0, 18, 18);
-      // body
-      g.fillStyle(d.color, 1);
-      g.fillRect(1, 1, 16, 16);
-      // face pixels
-      g.fillStyle(0x0b1020, 1);
-      g.fillRect(5, 6, 2, 2);
-      g.fillRect(11, 6, 2, 2);
-      g.fillRect(8, 11, 2, 1);
-      g.generateTexture(`doll:${d.id}`, 18, 18);
       g.destroy();
     }
 

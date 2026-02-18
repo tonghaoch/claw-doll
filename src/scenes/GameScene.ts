@@ -204,7 +204,7 @@ export class GameScene extends Phaser.Scene {
       const px = Phaser.Math.Between(x + 40, x + width - 40);
       const py = Phaser.Math.Between(y + 60, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, `doll:${def.id}`)
+        .image(px, py, 'dolls', def.frame)
         .setScale(2)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
@@ -408,7 +408,7 @@ export class GameScene extends Phaser.Scene {
       const px = Phaser.Math.Between(x + 40, x + width - 40);
       const py = Phaser.Math.Between(y + 60, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, `doll:${def.id}`)
+        .image(px, py, 'dolls', def.frame)
         .setScale(2)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
@@ -822,16 +822,9 @@ export class GameScene extends Phaser.Scene {
     const totalW = slots * size + (slots - 1) * pad + 20;
     const x0 = cx - totalW / 2;
 
-    const g = this.add.graphics();
-    g.setDepth(30);
-
-    // background plate
-    g.fillStyle(0x0b1224, 0.9);
-    g.fillRect(x0, y - 28, totalW, 56);
-    g.lineStyle(4, 0x0f172a, 1);
-    g.strokeRect(x0, y - 28, totalW, 56);
-    g.lineStyle(2, 0x475569, 1);
-    g.strokeRect(x0 + 4, y - 24, totalW - 8, 48);
+    // Kenney panel background (scaled)
+    const bg = this.add.image(cx, y, 'panel:space').setDepth(30);
+    bg.setDisplaySize(totalW, 56);
 
     const icons: Phaser.GameObjects.Image[] = [];
 
@@ -860,7 +853,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(34);
 
-    this.add.container(0, 0, [g, hint]).setDepth(30);
+    this.add.container(0, 0, [bg, hint]).setDepth(30);
     this.hotbarIcons = icons;
   }
 
@@ -873,8 +866,13 @@ export class GameScene extends Phaser.Scene {
         icon.setVisible(false);
         continue;
       }
-      icon.setTexture(`doll:${id}`);
-      icon.setScale(1.6);
+      const def = DOLLS.find((d) => d.id === id);
+      if (!def) {
+        icon.setVisible(false);
+        continue;
+      }
+      icon.setTexture('dolls', def.frame);
+      icon.setScale(2);
       icon.setVisible(true);
     }
   }
@@ -884,8 +882,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.hotbarIcons?.[0]) return;
     const target = this.hotbarIcons[0];
 
-    const icon = this.add.image(this.clawX, this.clawY + 44, `doll:${def.id}`).setScale(1.8).setDepth(200);
-    icon.setTint(def.color);
+    const icon = this.add.image(this.clawX, this.clawY + 44, 'dolls', def.frame).setScale(2).setDepth(200);
+    icon.clearTint();
 
     this.tweens.add({
       targets: icon,

@@ -61,8 +61,7 @@ export class PokedexScene extends Phaser.Scene {
       g.lineStyle(2, owned ? 0x64748b : 0x1f2937, 1);
       g.strokeRoundedRect(x, y, 160, 62, 8);
 
-      const iconKey = `doll:${d.id}`;
-      const icon = this.add.image(x + 28, y + 31, iconKey).setScale(2);
+      const icon = this.add.image(x + 28, y + 31, 'dolls', d.frame).setScale(2);
       if (!owned) icon.setTint(0x374151);
 
       this.add
