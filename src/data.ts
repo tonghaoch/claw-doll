@@ -6,19 +6,21 @@ export type DollDef = {
   rarity: Rarity;
   catchRate: number; // 0..1 base
   color: number; // 0xRRGGBB
-  frame: number; // frame index in 'dolls' spritesheet
+  frameName: string; // frame name in 'animals' atlas
 };
 
-// Using Kenney Roguelike Characters spritesheet (CC0).
-// Frame indices chosen to look like "collectible dolls".
+// Using Kenney Animal Pack Redux atlas (CC0).
 export const DOLLS: DollDef[] = [
-  { id: 'doll-apple', name: '苹果娃娃', rarity: 'N', catchRate: 0.65, color: 0xe74c3c, frame: 1 },
-  { id: 'doll-banana', name: '香蕉娃娃', rarity: 'N', catchRate: 0.60, color: 0xf1c40f, frame: 2 },
-  { id: 'doll-mint', name: '薄荷娃娃', rarity: 'R', catchRate: 0.45, color: 0x2ecc71, frame: 18 },
-  { id: 'doll-berry', name: '莓莓娃娃', rarity: 'R', catchRate: 0.40, color: 0x9b59b6, frame: 19 },
-  { id: 'doll-cloud', name: '云朵娃娃', rarity: 'SR', catchRate: 0.25, color: 0x3498db, frame: 33 },
-  { id: 'doll-star', name: '星星娃娃', rarity: 'SR', catchRate: 0.22, color: 0xf39c12, frame: 34 },
-  { id: 'doll-king', name: '国王娃娃', rarity: 'SSR', catchRate: 0.12, color: 0xecf0f1, frame: 49 },
+  { id: 'doll-bear', name: '小熊', rarity: 'N', catchRate: 0.65, color: 0xc0855c, frameName: 'bear.png' },
+  { id: 'doll-panda', name: '熊猫', rarity: 'N', catchRate: 0.60, color: 0xe5e7eb, frameName: 'panda.png' },
+
+  { id: 'doll-rabbit', name: '兔子', rarity: 'R', catchRate: 0.45, color: 0xf1c40f, frameName: 'rabbit.png' },
+  { id: 'doll-penguin', name: '企鹅', rarity: 'R', catchRate: 0.40, color: 0x3498db, frameName: 'penguin.png' },
+
+  { id: 'doll-owl', name: '猫头鹰', rarity: 'SR', catchRate: 0.25, color: 0x9b59b6, frameName: 'owl.png' },
+  { id: 'doll-frog', name: '青蛙', rarity: 'SR', catchRate: 0.22, color: 0x2ecc71, frameName: 'frog.png' },
+
+  { id: 'doll-narwhal', name: '独角鲸', rarity: 'SSR', catchRate: 0.12, color: 0xfacc15, frameName: 'narwhal.png' },
 ];
 
 export const rarityColor: Record<Rarity, string> = {

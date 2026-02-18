@@ -14,12 +14,11 @@ export class BootScene extends Phaser.Scene {
       spacing: 2,
     });
 
-    this.load.spritesheet('dolls', 'assets/kenney/roguelike-characters/Spritesheet/roguelikeChar_transparent.png', {
-      frameWidth: 16,
-      frameHeight: 16,
-      margin: 1,
-      spacing: 1,
-    });
+    this.load.atlasXML(
+      'animals',
+      'assets/kenney/animal-pack-redux/Spritesheet/square.png',
+      'assets/kenney/animal-pack-redux/Spritesheet/square.xml',
+    );
 
     // 9-slice panels we can scale freely
     this.load.image('panel:space', 'assets/kenney/pixel-ui-pack/9-Slice/space.png');

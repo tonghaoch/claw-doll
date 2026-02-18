@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Downloaded Kenney asset archives
+public/assets/kenney/*.zip
+
+# Generated preview image
+public/assets/kenney/roguelike-characters/frames_0_119.png

@@ -12,6 +12,7 @@ export class GameScene extends Phaser.Scene {
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyP!: Phaser.Input.Keyboard.Key;
   private keyR!: Phaser.Input.Keyboard.Key;
+  private keyM!: Phaser.Input.Keyboard.Key;
 
   private box!: Phaser.GameObjects.Rectangle;
   private dolls!: Phaser.Physics.Arcade.Group;
@@ -74,6 +75,9 @@ export class GameScene extends Phaser.Scene {
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyP = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyR = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.keyM = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+
+    this.sfxEnabled = localStorage.getItem('claw-doll-sfx') !== 'off';
 
     this.drawScene();
     this.spawnDolls();
@@ -110,6 +114,8 @@ export class GameScene extends Phaser.Scene {
     this.createHotbar();
     this.updateHotbar();
 
+    this.events.on('resume', () => this.playClosePokedexSfx());
+
     this.createStartOverlay();
     this.showToast('READY? PRESS SPACE', 1600, '#94a3b8');
   }
@@ -119,18 +125,26 @@ export class GameScene extends Phaser.Scene {
 
     // Start gate
     if (!this.started) {
+      if (Phaser.Input.Keyboard.JustDown(this.keyM)) this.toggleMute();
       if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
         this.started = true;
         this.startOverlay.setVisible(false);
         this.startRound();
-        this.showToast('←/→ MOVE  SPACE DROP  P POKEDEX  R RESET', 2000, '#e5e7eb');
+        this.playStartSfx();
+        this.showToast('←/→ MOVE  SPACE DROP  P POKEDEX  R RESET  M MUTE', 2000, '#e5e7eb');
       }
       return;
     }
 
-    if (this.roundOverlay) return;
+    if (this.roundOverlay) {
+      if (Phaser.Input.Keyboard.JustDown(this.keyM)) this.toggleMute();
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyM)) this.toggleMute();
 
     if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
+      this.playOpenPokedexSfx();
       this.scene.launch('pokedex', { save: this.save });
       this.scene.pause();
       return;
@@ -204,8 +218,8 @@ export class GameScene extends Phaser.Scene {
       const px = Phaser.Math.Between(x + 40, x + width - 40);
       const py = Phaser.Math.Between(y + 60, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, 'dolls', def.frame)
-        .setScale(2)
+        .image(px, py, 'animals', def.frameName)
+        .setScale(0.3)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
 
@@ -410,8 +424,8 @@ export class GameScene extends Phaser.Scene {
       const px = Phaser.Math.Between(x + 40, x + width - 40);
       const py = Phaser.Math.Between(y + 60, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, 'dolls', def.frame)
-        .setScale(2)
+        .image(px, py, 'animals', def.frameName)
+        .setScale(0.3)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
       spr.def = def;
@@ -541,7 +555,7 @@ export class GameScene extends Phaser.Scene {
       color: '#94a3b8',
     }).setOrigin(0.5);
 
-    const how = this.add.text(480, 280, '←/→ move    Space drop\nP pokedex    R reset', {
+    const how = this.add.text(480, 280, '←/→ move    Space drop\nP pokedex    R reset    M mute', {
       fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
       fontSize: '14px',
       color: '#cbd5e1',
@@ -630,12 +644,14 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, hint]).setDepth(120);
+    this.playRoundOverSfx();
 
     // One-shot key handler
     const onKey = () => {
       if (!this.roundOverlay) return;
       this.roundOverlay.destroy(true);
       this.roundOverlay = undefined;
+      this.playRetrySfx();
       this.startRound();
     };
     this.input.keyboard!.once('keydown-SPACE', onKey);
@@ -671,7 +687,7 @@ export class GameScene extends Phaser.Scene {
 
     this.aimed = best;
     this.aimed.setTint(0xffffff);
-    this.aimed.setScale(2.18);
+    this.aimed.setScale(0.34);
 
     this.aimedPulse = this.tweens.add({
       targets: this.aimed,
@@ -691,7 +707,7 @@ export class GameScene extends Phaser.Scene {
     if (this.aimed && this.aimed.active) {
       this.aimed.clearTint();
       this.aimed.setAlpha(1);
-      this.aimed.setScale(2);
+      this.aimed.setScale(0.3);
     }
     this.aimed = undefined;
   }
@@ -815,6 +831,50 @@ export class GameScene extends Phaser.Scene {
     this.beep(420, 70, 'square', 0.035);
   }
 
+  private playStartSfx() {
+    this.beep(440, 80, 'square', 0.04);
+    this.time.delayedCall(80, () => this.beep(660, 80, 'square', 0.04));
+    this.time.delayedCall(160, () => this.beep(880, 120, 'square', 0.05));
+  }
+
+  private playOpenPokedexSfx() {
+    this.beep(600, 60, 'square', 0.03);
+    this.time.delayedCall(60, () => this.beep(900, 80, 'square', 0.03));
+  }
+
+  private playClosePokedexSfx() {
+    this.beep(900, 60, 'square', 0.03);
+    this.time.delayedCall(60, () => this.beep(600, 80, 'square', 0.03));
+  }
+
+  private playRoundOverSfx() {
+    this.beep(440, 120, 'sawtooth', 0.04);
+    this.time.delayedCall(140, () => this.beep(330, 160, 'sawtooth', 0.04));
+    this.time.delayedCall(320, () => this.beep(220, 200, 'sawtooth', 0.03));
+  }
+
+  private playRetrySfx() {
+    this.beep(330, 70, 'square', 0.04);
+    this.time.delayedCall(80, () => this.beep(440, 70, 'square', 0.04));
+    this.time.delayedCall(160, () => this.beep(660, 100, 'square', 0.05));
+  }
+
+  /** Hook for UI button hover — call when hover buttons are added. */
+  playBtnHoverSfx() {
+    this.beep(700, 25, 'square', 0.015);
+  }
+
+  /** Hook for UI button click — call when click buttons are added. */
+  playBtnClickSfx() {
+    this.beep(500, 40, 'square', 0.03);
+  }
+
+  private toggleMute() {
+    this.sfxEnabled = !this.sfxEnabled;
+    localStorage.setItem('claw-doll-sfx', this.sfxEnabled ? 'on' : 'off');
+    this.showToast(this.sfxEnabled ? 'SFX ON' : 'SFX OFF', 800, '#94a3b8');
+  }
+
   private createHotbar() {
     const cx = 480;
     const y = 510;
@@ -873,8 +933,8 @@ export class GameScene extends Phaser.Scene {
         icon.setVisible(false);
         continue;
       }
-      icon.setTexture('dolls', def.frame);
-      icon.setScale(2);
+      icon.setTexture('animals', def.frameName);
+      icon.setScale(0.22);
       icon.setVisible(true);
     }
   }
@@ -884,23 +944,23 @@ export class GameScene extends Phaser.Scene {
     if (!this.hotbarIcons?.[0]) return;
     const target = this.hotbarIcons[0];
 
-    const icon = this.add.image(this.clawX, this.clawY + 44, 'dolls', def.frame).setScale(2).setDepth(200);
+    const icon = this.add.image(this.clawX, this.clawY + 44, 'animals', def.frameName).setScale(0.3).setDepth(200);
     icon.clearTint();
 
     this.tweens.add({
       targets: icon,
       x: target.x,
       y: target.y,
-      scale: 1.4,
+      scale: 0.22,
       duration: 420,
       ease: 'Cubic.easeOut',
       onComplete: () => {
         icon.destroy();
         // pulse target
-        target.setScale(1.85);
+        target.setScale(0.26);
         this.tweens.add({
           targets: target,
-          scale: 1.6,
+          scale: 0.22,
           duration: 180,
           ease: 'Back.easeOut',
         });
