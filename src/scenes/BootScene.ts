@@ -23,6 +23,7 @@ export class BootScene extends Phaser.Scene {
     // 9-slice panels we can scale freely
     this.load.image('panel:space', 'assets/kenney/pixel-ui-pack/9-Slice/space.png');
     this.load.image('panel:space_inlay', 'assets/kenney/pixel-ui-pack/9-Slice/space_inlay.png');
+    this.load.image('dungeon-tiles', 'assets/kenney/tiny-dungeon/Tilemap/tilemap_packed.png');
   }
 
   create() {
@@ -77,6 +78,28 @@ export class BootScene extends Phaser.Scene {
       g.fillRect(3, 3, 2, 2);
       g.generateTexture('spark', 8, 8);
       g.destroy();
+    }
+
+    // Pixel chunk for win particles
+    {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(0, 0, 4, 4);
+      g.generateTexture('pixel-chunk', 4, 4);
+      g.destroy();
+    }
+
+    // Vignette overlay (dark corners)
+    {
+      const w = 960, h = 540;
+      const canvas = this.textures.createCanvas('vignette', w, h)!;
+      const ctx = canvas.getContext();
+      const gradient = ctx.createRadialGradient(w / 2, h / 2, w * 0.28, w / 2, h / 2, w * 0.72);
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.6)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+      canvas.refresh();
     }
   }
 }

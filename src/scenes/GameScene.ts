@@ -61,6 +61,10 @@ export class GameScene extends Phaser.Scene {
 
   private hudText!: Phaser.GameObjects.Text;
   private toastText!: Phaser.GameObjects.Text;
+  private bgTile!: Phaser.GameObjects.TileSprite;
+  private bgTile2!: Phaser.GameObjects.TileSprite;
+  private sfxLabel!: Phaser.GameObjects.Text;
+  private dollShadows = new Map<DollSprite, Phaser.GameObjects.Ellipse>();
 
   private save = loadSave();
 
@@ -83,13 +87,13 @@ export class GameScene extends Phaser.Scene {
     this.spawnDolls();
 
     // Minecraft-ish HUD panels (pixel border + dark fill)
-    this.add.rectangle(12, 12, 420, 62, 0x0b1224, 0.85).setOrigin(0, 0).setDepth(9);
-    this.add.rectangle(12, 12, 420, 62).setOrigin(0, 0).setStrokeStyle(2, 0x334155, 1).setDepth(9);
+    this.add.rectangle(12, 12, 420, 42, 0x0b1224, 0.85).setOrigin(0, 0).setDepth(9);
+    this.add.rectangle(12, 12, 420, 42).setOrigin(0, 0).setStrokeStyle(2, 0x334155, 1).setDepth(9);
 
     // Luck bar (XP bar style)
-    this.add.rectangle(16, 58, 200, 10, 0x111827, 1).setOrigin(0, 0.5).setDepth(10);
-    this.add.rectangle(16, 58, 200, 10).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569, 1).setDepth(12);
-    this.luckBarFill = this.add.rectangle(16, 58, 0, 6, 0x22c55e, 1).setOrigin(0, 0.5).setDepth(11);
+    this.add.rectangle(16, 42, 200, 8, 0x111827, 1).setOrigin(0, 0.5).setDepth(10);
+    this.add.rectangle(16, 42, 200, 8).setOrigin(0, 0.5).setStrokeStyle(2, 0x475569, 1).setDepth(12);
+    this.luckBarFill = this.add.rectangle(16, 42, 0, 5, 0x22c55e, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
       .text(480, 40, '', {
@@ -102,9 +106,9 @@ export class GameScene extends Phaser.Scene {
       .setAlpha(0);
 
     this.hudText = this.add
-      .text(16, 16, '', {
+      .text(16, 18, '', {
         fontFamily: '"Press Start 2P","Noto Sans SC",sans-serif',
-        fontSize: '14px',
+        fontSize: '11px',
         color: '#e5e7eb',
       })
       .setDepth(10);
@@ -121,6 +125,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_t: number, dtMs: number) {
+    if (this.bgTile) {
+      this.bgTile.tilePositionX += 0.15;
+      this.bgTile.tilePositionY += 0.1;
+    }
+    if (this.bgTile2) {
+      this.bgTile2.tilePositionX -= 0.08;
+      this.bgTile2.tilePositionY += 0.05;
+    }
     const dt = dtMs / 1000;
 
     // Start gate
@@ -166,27 +178,65 @@ export class GameScene extends Phaser.Scene {
     const w = 960;
     const h = 540;
 
-    // background grid
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0b1020, 1);
-    bg.fillRect(0, 0, w, h);
-    bg.lineStyle(1, 0x111827, 1);
-    for (let x = 0; x < w; x += 24) bg.lineBetween(x, 0, x, h);
-    for (let y = 0; y < h; y += 24) bg.lineBetween(0, y, w, y);
+    // Tiled dungeon background (subtle, tinted dark)
+    this.bgTile = this.add.tileSprite(0, 0, w, h, 'dungeon-tiles').setOrigin(0).setTint(0x1a1a2e).setAlpha(0.55);
 
-    // box
+    // Second parallax layer (slower, different tint)
+    this.bgTile2 = this.add.tileSprite(0, 0, w, h, 'dungeon-tiles').setOrigin(0).setTint(0x2e1a3a).setAlpha(0.25).setDepth(0);
+
+    // Colorful gradient overlay
+    const grad = this.add.graphics().setDepth(0);
+    grad.fillGradientStyle(0x3b82f6, 0x8b5cf6, 0x06b6d4, 0xec4899, 0.08, 0.08, 0.08, 0.08);
+    grad.fillRect(0, 0, w, h);
+
+    // Vignette overlay
+    this.add.image(w / 2, h / 2, 'vignette').setDepth(1);
+
+    // Animated dust particles
+    this.time.addEvent({ delay: 350, loop: true, callback: () => this.spawnDust() });
+
+    // box — glass container
     const boxX = 160;
     const boxY = 140;
     const boxW = 640;
     const boxH = 320;
 
-    const g = this.add.graphics();
-    g.fillStyle(0x111827, 1);
-    g.fillRoundedRect(boxX - 6, boxY - 6, boxW + 12, boxH + 12, 8);
-    g.fillStyle(0x0f172a, 1);
+    const g = this.add.graphics().setDepth(2);
+    // Outer frame
+    g.fillStyle(0x1e293b, 1);
+    g.fillRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, 10);
+    // Inner fill
+    g.fillStyle(0x0f172a, 0.92);
     g.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
+    // Strong outer border
+    g.lineStyle(3, 0x475569, 1);
+    g.strokeRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, 10);
+    // Inner border
     g.lineStyle(2, 0x334155, 1);
     g.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
+    // Glass highlight edge
+    g.lineStyle(1, 0x64748b, 0.5);
+    g.strokeRoundedRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, 6);
+
+    // Inner shadow/highlight for glass effect
+    const sh = this.add.graphics().setDepth(6);
+    sh.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.06, 0.06, 0, 0);
+    sh.fillRect(boxX + 6, boxY + 4, boxW - 12, 24);
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.1, 0.1);
+    sh.fillRect(boxX + 6, boxY + boxH - 28, boxW - 12, 24);
+
+    // Bottom filler layer inside box (gradient + subtle noise)
+    const filler = this.add.graphics().setDepth(3);
+    const fillerH = 60;
+    filler.fillGradientStyle(0x1e293b, 0x1e293b, 0x0f172a, 0x0f172a, 0, 0, 0.35, 0.35);
+    filler.fillRect(boxX + 4, boxY + boxH - fillerH, boxW - 8, fillerH);
+    // Subtle noise using spark textures
+    for (let i = 0; i < 18; i++) {
+      const nx = Phaser.Math.Between(boxX + 10, boxX + boxW - 10);
+      const ny = Phaser.Math.Between(boxY + boxH - fillerH + 5, boxY + boxH - 8);
+      this.add.image(nx, ny, 'spark').setScale(Phaser.Math.FloatBetween(0.4, 0.8))
+        .setAlpha(Phaser.Math.FloatBetween(0.02, 0.06)).setDepth(3).setTint(0x334155);
+    }
 
     this.box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x000000, 0).setOrigin(0);
 
@@ -216,7 +266,8 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < 12; i++) {
       const def = Phaser.Utils.Array.GetRandom(DOLLS);
       const px = Phaser.Math.Between(x + 40, x + width - 40);
-      const py = Phaser.Math.Between(y + 60, y + height - 40);
+      // Bias spawn towards bottom half
+      const py = Phaser.Math.Between(y + height * 0.35, y + height - 40);
       const spr = this.physics.add
         .image(px, py, 'animals', def.frameName)
         .setScale(0.3)
@@ -224,8 +275,13 @@ export class GameScene extends Phaser.Scene {
         .setCollideWorldBounds(false) as DollSprite;
 
       spr.def = def;
+      spr.setDepth(5);
       spr.setVelocity(Phaser.Math.Between(-40, 40), Phaser.Math.Between(-25, 25));
       this.dolls.add(spr);
+
+      // Shadow ellipse under doll
+      const shadow = this.add.ellipse(px, py + 14, 28, 8, 0x000000, 0.22).setDepth(4);
+      this.dollShadows.set(spr, shadow);
     }
   }
 
@@ -266,6 +322,12 @@ export class GameScene extends Phaser.Scene {
 
       body.velocity.x = Phaser.Math.Clamp(body.velocity.x, -60, 60);
       body.velocity.y = Phaser.Math.Clamp(body.velocity.y, -45, 45);
+
+      // Update shadow position
+      const shadow = this.dollShadows.get(spr);
+      if (shadow) {
+        shadow.setPosition(spr.x, spr.y + 14);
+      }
 
       return true;
     });
@@ -415,6 +477,8 @@ export class GameScene extends Phaser.Scene {
     if (this.grabbed) {
       // Remove grabbed doll from scene and respawn another
       const old = this.grabbed;
+      const oldShadow = this.dollShadows.get(old);
+      if (oldShadow) { oldShadow.destroy(); this.dollShadows.delete(old); }
       old.destroy();
       this.grabbed = undefined;
 
@@ -422,15 +486,19 @@ export class GameScene extends Phaser.Scene {
       const def = Phaser.Utils.Array.GetRandom(DOLLS);
       const { x, y, width, height } = this.box;
       const px = Phaser.Math.Between(x + 40, x + width - 40);
-      const py = Phaser.Math.Between(y + 60, y + height - 40);
+      const py = Phaser.Math.Between(y + height * 0.35, y + height - 40);
       const spr = this.physics.add
         .image(px, py, 'animals', def.frameName)
         .setScale(0.3)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
       spr.def = def;
+      spr.setDepth(5);
       spr.setVelocity(Phaser.Math.Between(-40, 40), Phaser.Math.Between(-25, 25));
       this.dolls.add(spr);
+
+      const shadow = this.add.ellipse(px, py + 14, 28, 8, 0x000000, 0.22).setDepth(4);
+      this.dollShadows.set(spr, shadow);
     }
 
     this.clawArms.setTexture('claw-arms-open');
@@ -456,15 +524,16 @@ export class GameScene extends Phaser.Scene {
 
     // Celebrate by rarity
     const fx = {
-      N: { sparks: 4, shake: 0.002, dur: 60, flash: 0 },
-      R: { sparks: 6, shake: 0.004, dur: 90, flash: 0 },
-      SR: { sparks: 10, shake: 0.006, dur: 150, flash: 0 },
-      SSR: { sparks: 16, shake: 0.010, dur: 300, flash: 0.55 },
+      N: { sparks: 4, shake: 0.002, dur: 60, flash: 0, chunks: 3, chunkSpread: 22 },
+      R: { sparks: 6, shake: 0.004, dur: 90, flash: 0, chunks: 6, chunkSpread: 32 },
+      SR: { sparks: 10, shake: 0.006, dur: 150, flash: 0, chunks: 12, chunkSpread: 44 },
+      SSR: { sparks: 16, shake: 0.010, dur: 300, flash: 0.55, chunks: 20, chunkSpread: 58 },
     } as const;
     const f = fx[def.rarity];
 
     this.cameras.main.shake(f.dur, f.shake);
     this.spawnSpark(this.clawX, this.clawY + 44, f.sparks, 28, def.color);
+    this.spawnPixelChunks(this.clawX, this.clawY + 44, f.chunks, f.chunkSpread, def.color);
 
     if (f.flash > 0) {
       this.flash.setAlpha(f.flash);
@@ -507,10 +576,9 @@ export class GameScene extends Phaser.Scene {
     const total = DOLLS.length;
     const luckPct = Math.round(this.luckBonus * 100);
 
-    this.hudText.setText([
-      `POKEDEX ${owned}/${total}   |   TRY ${this.attemptsLeft}/${this.attemptsPerRound}   |   LUCK +${luckPct}%   |   STREAK ${this.winStreak}   |   BEST ${this.save.bestStreak}`,
-      `P POKEDEX  |  SPACE DROP  |  R RESET`,
-    ]);
+    this.hudText.setText(
+      `POKEDEX ${owned}/${total}  TRY ${this.attemptsLeft}/${this.attemptsPerRound}  LUCK +${luckPct}%  STREAK ${this.winStreak}  BEST ${this.save.bestStreak}`,
+    );
 
     // luck bar
     const max = 0.35;
@@ -754,6 +822,46 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private spawnDust() {
+    const x = Phaser.Math.Between(40, 920);
+    const y = Phaser.Math.Between(40, 500);
+    const s = this.add
+      .image(x, y, 'spark')
+      .setScale(Phaser.Math.FloatBetween(0.5, 1.0))
+      .setAlpha(Phaser.Math.FloatBetween(0.03, 0.07))
+      .setDepth(1);
+    this.tweens.add({
+      targets: s,
+      y: y - Phaser.Math.Between(20, 50),
+      alpha: 0,
+      duration: Phaser.Math.Between(2500, 4500),
+      ease: 'Sine.easeOut',
+      onComplete: () => s.destroy(),
+    });
+  }
+
+  private spawnPixelChunks(x: number, y: number, count: number, spread: number, color: number) {
+    const palette = [color, 0xffffff, 0xfacc15, 0xff6b6b, 0x60a5fa];
+    for (let i = 0; i < count; i++) {
+      const c = palette[i % palette.length];
+      const sz = Phaser.Math.Between(3, 6);
+      const s = this.add.rectangle(x, y, sz, sz, c).setDepth(45);
+      s.setRotation(Phaser.Math.FloatBetween(0, Math.PI));
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const dist = Phaser.Math.Between(Math.round(spread * 0.35), spread);
+      this.tweens.add({
+        targets: s,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0,
+        rotation: s.rotation + Phaser.Math.FloatBetween(-1.5, 1.5),
+        duration: Phaser.Math.Between(380, 600),
+        ease: 'Sine.easeOut',
+        onComplete: () => s.destroy(),
+      });
+    }
+  }
+
   private drawAimLine() {
     this.aimLine.clear();
     this.aimLine.lineStyle(2, 0x94a3b8, 0.18);
@@ -873,6 +981,10 @@ export class GameScene extends Phaser.Scene {
     this.sfxEnabled = !this.sfxEnabled;
     localStorage.setItem('claw-doll-sfx', this.sfxEnabled ? 'on' : 'off');
     this.showToast(this.sfxEnabled ? 'SFX ON' : 'SFX OFF', 800, '#94a3b8');
+    if (this.sfxLabel) {
+      this.sfxLabel.setText(this.sfxEnabled ? 'SFX:ON' : 'SFX:OFF');
+      this.sfxLabel.setStyle({ color: this.sfxEnabled ? '#22c55e' : '#ef4444' });
+    }
   }
 
   private createHotbar() {
@@ -893,14 +1005,14 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < slots; i++) {
       const sx = x0 + 10 + i * (size + pad);
       const sy = y - size / 2;
-      // slot
-      const slot = this.add.rectangle(sx + size / 2, sy, size, size, 0x111827, 1).setDepth(31);
-      slot.setStrokeStyle(2, 0x64748b, 1);
+      // Pixel-UI slot background (spritesheet frame)
+      this.add.image(sx + size / 2, sy, 'ui', 0)
+        .setDisplaySize(size, size).setDepth(31).setTint(0x2a2a4a).setAlpha(0.9);
 
       const icon = this.add.image(sx + size / 2, sy, 'spark').setDepth(32).setVisible(false);
       icons.push(icon);
 
-      // selected (first slot)
+      // selected highlight (first slot)
       if (i === 0) {
         this.add.rectangle(sx + size / 2, sy, size + 6, size + 6).setDepth(33).setStrokeStyle(3, 0xfacc15, 1);
       }
@@ -915,7 +1027,27 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(34);
 
-    this.add.container(0, 0, [bg, hint]).setDepth(30);
+    // Key hints near hotbar
+    const keyHints = this.add
+      .text(cx, y + 32, '←/→ MOVE   SPACE DROP   P POKEDEX   R RESET   M MUTE', {
+        fontFamily: '"Press Start 2P",sans-serif',
+        fontSize: '8px',
+        color: '#64748b',
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+
+    // SFX indicator near hotbar (M to toggle)
+    this.sfxLabel = this.add
+      .text(cx + totalW / 2 + 14, y, this.sfxEnabled ? 'SFX:ON' : 'SFX:OFF', {
+        fontFamily: '"Press Start 2P",sans-serif',
+        fontSize: '9px',
+        color: this.sfxEnabled ? '#22c55e' : '#ef4444',
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(34);
+
+    this.add.container(0, 0, [bg, hint, keyHints]).setDepth(30);
     this.hotbarIcons = icons;
   }
 
