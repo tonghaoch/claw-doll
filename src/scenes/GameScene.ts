@@ -181,9 +181,9 @@ export class GameScene extends Phaser.Scene {
     this.clawTopY = 70;
     this.clawY = this.clawTopY;
 
-    this.clawString = this.add.rectangle(this.clawX, this.clawTopY, 2, 1, 0x94a3b8).setOrigin(0.5, 0);
-    this.clawBody = this.add.image(this.clawX, this.clawTopY + 18, 'claw-body').setOrigin(0.5, 0.5);
-    this.clawArms = this.add.image(this.clawX, this.clawTopY + 32, 'claw-arms-open').setOrigin(0.5, 0);
+    this.clawString = this.add.rectangle(this.clawX, this.clawTopY, 2, 1, 0x94a3b8).setOrigin(0.5, 0).setDepth(7);
+    this.clawBody = this.add.image(this.clawX, this.clawTopY + 18, 'claw-body').setOrigin(0.5, 0.5).setDepth(7);
+    this.clawArms = this.add.image(this.clawX, this.clawTopY + 32, 'claw-arms-open').setOrigin(0.5, 0).setDepth(7);
 
     this.clawMaxY = boxY + boxH - 20;
 
@@ -221,6 +221,7 @@ export class GameScene extends Phaser.Scene {
     this.dolls.children.iterate((obj) => {
       const spr = obj as DollSprite;
       if (!spr?.active) return true;
+      if (spr === this.grabbed) return true;
       const body = spr.body as Phaser.Physics.Arcade.Body;
 
       // Soft bounds bounce inside the box
@@ -362,6 +363,7 @@ export class GameScene extends Phaser.Scene {
       best.setVelocity(0, 0);
       const body = best.body as Phaser.Physics.Arcade.Body;
       body.enable = false;
+      best.setDepth(8);
       this.grabbed = best;
       this.onWin(best.def);
     } else {
