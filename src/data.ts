@@ -18,6 +18,13 @@ export const DOLLS: DollDef[] = [
   { id: 'doll-king', name: '国王娃娃', rarity: 'SSR', catchRate: 0.12, color: 0xecf0f1 },
 ];
 
+export const rarityColor: Record<Rarity, string> = {
+  N: '#e5e7eb',
+  R: '#3498db',
+  SR: '#9b59b6',
+  SSR: '#f1c40f',
+};
+
 export function rarityLabel(r: Rarity) {
   return r;
 }

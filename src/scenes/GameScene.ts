@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DOLLS, rarityLabel } from '../data';
+import { DOLLS, rarityColor, rarityLabel } from '../data';
 import type { DollDef } from '../data';
 import { loadSave, saveNow, clearSave } from '../save';
 
@@ -24,6 +24,11 @@ export class GameScene extends Phaser.Scene {
   private clawBody!: Phaser.GameObjects.Image;
   private clawArms!: Phaser.GameObjects.Image;
   private clawString!: Phaser.GameObjects.Rectangle;
+  private aimLine!: Phaser.GameObjects.Graphics;
+
+  private luckBarFill!: Phaser.GameObjects.Rectangle;
+
+  private flash!: Phaser.GameObjects.Rectangle;
 
   private state: ClawState = 'idle';
   private grabbed?: DollSprite;
@@ -51,6 +56,12 @@ export class GameScene extends Phaser.Scene {
 
     this.drawScene();
     this.spawnDolls();
+
+    // Luck bar (visual pity)
+    this.add.rectangle(16, 54, 140, 8, 0x1f2937, 1).setOrigin(0, 0.5).setDepth(10);
+    // subtle border to make it read better
+    this.add.rectangle(16, 54, 140, 8).setOrigin(0, 0.5).setStrokeStyle(2, 0x334155, 1).setDepth(12);
+    this.luckBarFill = this.add.rectangle(16, 54, 0, 8, 0x22d3ee, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
       .text(480, 40, '', {
@@ -130,6 +141,12 @@ export class GameScene extends Phaser.Scene {
     this.clawArms = this.add.image(this.clawX, this.clawTopY + 32, 'claw-arms-open').setOrigin(0.5, 0);
 
     this.clawMaxY = boxY + boxH - 20;
+
+    // Aiming preview line (idle only)
+    this.aimLine = this.add.graphics().setDepth(3);
+
+    // SSR flash overlay (hidden by default)
+    this.flash = this.add.rectangle(0, 0, w, h, 0xffffff, 0).setOrigin(0).setDepth(50);
   }
 
   private spawnDolls() {
@@ -205,11 +222,17 @@ export class GameScene extends Phaser.Scene {
 
       this.clawX = Phaser.Math.Clamp(this.clawX, boxLeft, boxRight);
 
+      // Aim line
+      this.drawAimLine();
+      this.aimLine.setVisible(true);
+
       if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
         this.state = 'dropping';
         this.grabbed = undefined;
         this.clawArms.setTexture('claw-arms-open');
       }
+    } else {
+      this.aimLine.setVisible(false);
     }
 
     const dropSpeed = 360;
@@ -324,11 +347,38 @@ export class GameScene extends Phaser.Scene {
     this.save.counts[def.id] = (this.save.counts[def.id] ?? 0) + 1;
     saveNow(this.save);
 
-    this.cameras.main.shake(80, 0.003);
-    this.spawnSpark(this.clawX, this.clawY + 44);
+    // Celebrate by rarity
+    const fx = {
+      N: { sparks: 4, shake: 0.002, dur: 60, flash: 0 },
+      R: { sparks: 6, shake: 0.004, dur: 90, flash: 0 },
+      SR: { sparks: 10, shake: 0.006, dur: 150, flash: 0 },
+      SSR: { sparks: 16, shake: 0.010, dur: 300, flash: 0.55 },
+    } as const;
+    const f = fx[def.rarity];
 
-    this.showToast(`GET! [${rarityLabel(def.rarity)}] ${def.name}`, 1200);
+    this.cameras.main.shake(f.dur, f.shake);
+    this.spawnSpark(this.clawX, this.clawY + 44, f.sparks, 28, def.color);
+
+    if (f.flash > 0) {
+      this.flash.setAlpha(f.flash);
+      this.tweens.add({
+        targets: this.flash,
+        alpha: 0,
+        duration: 420,
+        ease: 'Sine.easeOut',
+      });
+    }
+
+    this.showToast(`GET! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
     this.updateHud();
+
+    // Luck bar drain
+    this.tweens.add({
+      targets: this.luckBarFill,
+      width: 0,
+      duration: 180,
+      ease: 'Sine.easeOut',
+    });
   }
 
   private onFail(msg: string) {
@@ -338,7 +388,7 @@ export class GameScene extends Phaser.Scene {
     // Pity/luck increases slowly, capped
     this.luckBonus = Phaser.Math.Clamp(this.luckBonus + 0.04, 0, 0.35);
 
-    this.showToast(msg, 900);
+    this.showToast(msg, 900, '#6b7280');
     this.updateHud();
   }
 
@@ -349,14 +399,30 @@ export class GameScene extends Phaser.Scene {
 
     this.hudText.setText([
       `图鉴: ${owned}/${total}  |  幸运: +${luckPct}%  |  连中: ${this.winStreak}  |  最佳连中: ${this.save.bestStreak}`,
-      `提示: P 打开图鉴 | R 清档`,
+      `提示: P 图鉴 | Space 下爪 | R 清档`,
     ]);
+
+    // luck bar
+    const max = 0.35;
+    const fullW = 140;
+    const ratio = Phaser.Math.Clamp(this.luckBonus / max, 0, 1);
+    this.luckBarFill.width = Math.round(fullW * ratio);
+    this.luckBarFill.fillColor = this.luckBonus > 0.25 ? 0xf59e0b : 0x22d3ee;
   }
 
-  private showToast(text: string, ms: number) {
+  private showToast(text: string, ms: number, color: string = '#e5e7eb') {
     this.toastText.setText(text);
+    this.toastText.setStyle({ color });
     this.toastText.setAlpha(1);
+    this.toastText.setScale(1);
+
     this.tweens.killTweensOf(this.toastText);
+    this.tweens.add({
+      targets: this.toastText,
+      scale: { from: 1.4, to: 1.0 },
+      duration: 200,
+      ease: 'Back.easeOut',
+    });
     this.tweens.add({
       targets: this.toastText,
       alpha: 0,
@@ -366,11 +432,12 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private spawnSpark(x: number, y: number) {
-    for (let i = 0; i < 6; i++) {
+  private spawnSpark(x: number, y: number, count = 6, spread = 26, tint?: number) {
+    for (let i = 0; i < count; i++) {
       const s = this.add.image(x, y, 'spark').setScale(Phaser.Math.Between(2, 3));
+      if (tint != null) s.setTint(tint);
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const dist = Phaser.Math.Between(12, 26);
+      const dist = Phaser.Math.Between(Math.round(spread * 0.5), spread);
       const tx = x + Math.cos(angle) * dist;
       const ty = y + Math.sin(angle) * dist;
       this.tweens.add({
@@ -382,6 +449,21 @@ export class GameScene extends Phaser.Scene {
         ease: 'Sine.easeOut',
         onComplete: () => s.destroy(),
       });
+    }
+  }
+
+  private drawAimLine() {
+    this.aimLine.clear();
+    this.aimLine.lineStyle(2, 0x94a3b8, 0.18);
+
+    const startY = this.clawY + 44;
+    const endY = this.clawMaxY;
+    const dash = 10;
+    const gap = 8;
+
+    for (let y = startY; y < endY; y += dash + gap) {
+      const y2 = Math.min(endY, y + dash);
+      this.aimLine.lineBetween(this.clawX, y, this.clawX, y2);
     }
   }
 }
