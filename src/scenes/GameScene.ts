@@ -430,7 +430,14 @@ export class GameScene extends Phaser.Scene {
 
     if (this.state === 'dropping') {
       this.clawY += dropSpeed * dt;
-      if (this.clawY >= this.clawMaxY) {
+
+      // Try to grab as soon as we touch a doll (feels responsive and matches player expectation).
+      // If nothing is hit, we will attempt once at max depth.
+      const hit = this.findGrabCandidate();
+      if (hit) {
+        this.state = 'grabbing';
+        this.tryGrab(hit);
+      } else if (this.clawY >= this.clawMaxY) {
         this.clawY = this.clawMaxY;
         this.state = 'grabbing';
         this.tryGrab();
@@ -460,7 +467,7 @@ export class GameScene extends Phaser.Scene {
     this.clawShadow.setPosition(this.clawX, this.clawY + 38);
   }
 
-  private tryGrab() {
+  private findGrabCandidate(): DollSprite | undefined {
     // Find nearest doll under claw arms area
     const clawRect = new Phaser.Geom.Rectangle(this.clawX - 28, this.clawY + 36, 56, 28);
 
@@ -481,6 +488,12 @@ export class GameScene extends Phaser.Scene {
       }
       return true;
     });
+
+    return best;
+  }
+
+  private tryGrab(forced?: DollSprite) {
+    const best = forced ?? this.findGrabCandidate();
 
     if (!best) {
       this.onFail('没抓到');
