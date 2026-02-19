@@ -11,6 +11,8 @@ type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
 type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
+type TouchDir = -1 | 0 | 1;
+
 
 export class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -43,6 +45,13 @@ export class GameScene extends Phaser.Scene {
 
   private started = false;
   private startOverlay!: Phaser.GameObjects.Container;
+
+  // Touch controls (mobile)
+  private touchDir: TouchDir = 0;
+  private touchPointerId: number | null = null;
+  private touchDownAt = 0;
+  private touchDownX = 0;
+  private touchDownY = 0;
 
   // SFX
   private sfxEnabled = true;
@@ -151,6 +160,7 @@ export class GameScene extends Phaser.Scene {
     this.events.on('resume', () => this.sfx.closePokedex());
 
     this.createStartOverlay();
+    this.setupTouchControls();
   }
 
   update(_t: number, dtMs: number) {
@@ -202,6 +212,74 @@ export class GameScene extends Phaser.Scene {
 
     this.updateDolls(dt);
     this.updateClaw(dt);
+  }
+
+  private setupTouchControls() {
+    // Touch scheme:
+    // - Hold left half: move left
+    // - Hold right half: move right
+    // - Tap anywhere: drop
+    const halfW = () => this.scale.width / 2;
+
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // only track the first active pointer
+      if (this.touchPointerId !== null) return;
+      this.touchPointerId = p.id;
+      this.touchDownAt = this.time.now;
+      this.touchDownX = p.x;
+      this.touchDownY = p.y;
+      this.touchDir = p.x < halfW() ? -1 : 1;
+
+      // Unlock audio on any gesture (additional safety)
+      this.sfx.unlock();
+
+      // Start the game with a tap
+      if (!this.started) {
+        this.started = true;
+        this.startOverlay.setVisible(false);
+        this.startRound();
+        this.sfx.start();
+        this.showToast('Hold left/right · Tap drop · P Pokédex · M Mute', 2000, '#e5e7eb');
+      }
+    });
+
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (this.touchPointerId !== p.id) return;
+
+      // Tap-to-drop: quick release with minimal movement.
+      const dt = this.time.now - this.touchDownAt;
+      const dx = p.x - this.touchDownX;
+      const dy = p.y - this.touchDownY;
+      const dist2 = dx * dx + dy * dy;
+
+      const isTap = dt < 220 && dist2 < 12 * 12;
+      if (isTap) this.handleDropAction();
+
+      this.touchPointerId = null;
+      this.touchDir = 0;
+    });
+
+    this.input.on('pointercancel', (p: Phaser.Input.Pointer) => {
+      if (this.touchPointerId !== p.id) return;
+      this.touchPointerId = null;
+      this.touchDir = 0;
+    });
+  }
+
+  private handleDropAction() {
+    if (!this.started) return;
+    if (this.roundOverlay) return;
+    if (this.state !== 'idle') return;
+    if (this.attemptsLeft <= 0) return;
+
+    this.attemptsLeft -= 1;
+    this.updateHud();
+    this.sfx.drop();
+
+    this.state = 'dropping';
+    this.grabbed = undefined;
+    this.dropDebugHitShown = false;
+    this.clawArms.setTexture('claw-arms-open');
   }
 
   private drawScene() {
@@ -396,9 +474,17 @@ export class GameScene extends Phaser.Scene {
     const boxRight = this.box.x + this.box.width - 30;
 
     if (this.state === 'idle') {
-      const moved = !!(this.cursors.left?.isDown || this.cursors.right?.isDown);
-      if (this.cursors.left?.isDown) this.clawX -= speed * dt;
-      if (this.cursors.right?.isDown) this.clawX += speed * dt;
+      const touchHoldMs = this.time.now - this.touchDownAt;
+      const allowTouchMove = this.touchPointerId !== null && touchHoldMs > 120;
+
+      const moved = !!(
+        this.cursors.left?.isDown ||
+        this.cursors.right?.isDown ||
+        (allowTouchMove && this.touchDir !== 0)
+      );
+
+      if (this.cursors.left?.isDown || (allowTouchMove && this.touchDir === -1)) this.clawX -= speed * dt;
+      if (this.cursors.right?.isDown || (allowTouchMove && this.touchDir === 1)) this.clawX += speed * dt;
       if (moved) this.sfx.move();
 
       this.clawX = Phaser.Math.Clamp(this.clawX, boxLeft, boxRight);
@@ -409,18 +495,7 @@ export class GameScene extends Phaser.Scene {
       this.updateAimedTarget();
 
       if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
-        if (this.attemptsLeft <= 0) {
-          this.showRoundEndOverlay();
-          return;
-        }
-        this.attemptsLeft -= 1;
-        this.updateHud();
-        this.sfx.drop();
-
-        this.state = 'dropping';
-        this.grabbed = undefined;
-        this.dropDebugHitShown = false;
-        this.clawArms.setTexture('claw-arms-open');
+        this.handleDropAction();
       }
     } else {
       this.aimLine.setVisible(false);
@@ -714,7 +789,7 @@ export class GameScene extends Phaser.Scene {
       color: '#94a3b8',
     }).setOrigin(0.5);
 
-    const how = this.add.text(480, 270, '←/→ move    Space drop\nP pokédex    R reset    M mute', {
+    const how = this.add.text(480, 270, '←/→ move    Space drop\nTap drop · Hold left/right to move\nP pokédex    R reset    M mute', {
       fontFamily: UI_FONT,
       fontSize: '14px',
       color: '#cbd5e1',
@@ -726,7 +801,7 @@ export class GameScene extends Phaser.Scene {
     const btnGfx = this.add.graphics();
     btnGfx.fillStyle(0xffb347, 1);
     btnGfx.fillRoundedRect(400, 330, 160, 44, 22);
-    const start = this.add.text(480, 352, 'Press Space', {
+    const start = this.add.text(480, 352, 'Tap / Space', {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '16px',
