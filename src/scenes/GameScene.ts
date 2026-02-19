@@ -242,7 +242,7 @@ export class GameScene extends Phaser.Scene {
     this.add.image(w / 2, h / 2, 'grain').setDepth(1).setAlpha(0.35);
 
     // Animated dust particles
-    this.time.addEvent({ delay: 350, loop: true, callback: () => this.spawnDust() });
+    this.time.addEvent({ delay: 900, loop: true, callback: () => this.spawnDust() });
 
     // box — modern glass arcade container
     const boxX = 160;
@@ -927,16 +927,36 @@ export class GameScene extends Phaser.Scene {
   private spawnDust() {
     const x = Phaser.Math.Between(40, 920);
     const y = Phaser.Math.Between(40, 500);
+
+    // Tint: 70% warm white/ivory, 20% orange/amber, 10% red/pink
+    const roll = Math.random();
+    let tint: number;
+    let alpha: number;
+    if (roll < 0.7) {
+      tint = Phaser.Utils.Array.GetRandom([0xfffdf0, 0xfff8e1, 0xfffaf0]);
+      alpha = Phaser.Math.FloatBetween(0.01, 0.03);
+    } else if (roll < 0.9) {
+      tint = Phaser.Utils.Array.GetRandom([0xffcc80, 0xffa726, 0xffb74d]);
+      alpha = Phaser.Math.FloatBetween(0.01, 0.03);
+    } else {
+      tint = Phaser.Utils.Array.GetRandom([0xef9a9a, 0xf48fb1, 0xe57373]);
+      alpha = Phaser.Math.FloatBetween(0.008, 0.02);
+    }
+
     const s = this.add
-      .image(x, y, 'spark')
-      .setScale(Phaser.Math.FloatBetween(0.5, 1.0))
-      .setAlpha(Phaser.Math.FloatBetween(0.03, 0.07))
+      .image(x, y, 'dust-dot')
+      .setScale(Phaser.Math.FloatBetween(0.25, 0.6))
+      .setAlpha(alpha)
+      .setTint(tint)
+      .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(1);
+
     this.tweens.add({
       targets: s,
+      x: x + Phaser.Math.Between(-12, 12),
       y: y - Phaser.Math.Between(20, 50),
       alpha: 0,
-      duration: Phaser.Math.Between(2500, 4500),
+      duration: Phaser.Math.Between(3500, 6500),
       ease: 'Sine.easeOut',
       onComplete: () => s.destroy(),
     });

@@ -127,6 +127,22 @@ export class BootScene extends Phaser.Scene {
       canvas.refresh();
     }
 
+    // Dust dot (warm soft radial glow for background dust)
+    {
+      const size = 48;
+      const half = size / 2;
+      const canvas = this.textures.createCanvas('dust-dot', size, size)!;
+      const ctx = canvas.getContext();
+      const g = ctx.createRadialGradient(half, half, 0, half, half, half);
+      g.addColorStop(0, 'rgba(255,253,240,1)');
+      g.addColorStop(0.3, 'rgba(255,248,225,0.6)');
+      g.addColorStop(0.7, 'rgba(255,244,210,0.15)');
+      g.addColorStop(1, 'rgba(255,240,200,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      canvas.refresh();
+    }
+
     // Soft confetti circle
     {
       const canvas = this.textures.createCanvas('pixel-chunk', 6, 6)!;
