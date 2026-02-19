@@ -7,7 +7,7 @@ type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
 type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
-const UI_FONT = '"Noto Sans SC", system-ui, sans-serif';
+const UI_FONT = 'Inter, "Noto Sans SC", system-ui, sans-serif';
 
 /* ── Design Tokens (Alto vibe) ─────────────────────────────── */
 const T = {
@@ -80,8 +80,7 @@ export class GameScene extends Phaser.Scene {
 
   private hudText!: Phaser.GameObjects.Text;
   private toastText!: Phaser.GameObjects.Text;
-  private bgTile?: Phaser.GameObjects.TileSprite;
-  private bgTile2?: Phaser.GameObjects.TileSprite;
+  private bgBlobs: Phaser.GameObjects.Image[] = [];
   private sfxLabel!: Phaser.GameObjects.Text;
   private dollShadows = new Map<DollSprite, Phaser.GameObjects.Ellipse>();
 
@@ -154,13 +153,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_t: number, dtMs: number) {
-    if (this.bgTile) {
-      this.bgTile.tilePositionX += 0.15;
-      this.bgTile.tilePositionY += 0.1;
-    }
-    if (this.bgTile2) {
-      this.bgTile2.tilePositionX -= 0.08;
-      this.bgTile2.tilePositionY += 0.05;
+    // Soft parallax drift on background blobs
+    const t = _t * 0.001;
+    for (let i = 0; i < this.bgBlobs.length; i++) {
+      const blob = this.bgBlobs[i];
+      const speed = 0.08 + i * 0.03;
+      const phase = i * 1.8;
+      blob.x += Math.sin(t * speed + phase) * 0.12;
+      blob.y += Math.cos(t * speed * 0.7 + phase) * 0.08;
     }
     const dt = dtMs / 1000;
 
@@ -220,6 +220,22 @@ export class GameScene extends Phaser.Scene {
     const grad = this.add.graphics().setDepth(0);
     grad.fillGradientStyle(0x3b82f6, 0x8b5cf6, 0x06b6d4, 0xec4899, 0.06, 0.06, 0.06, 0.06);
     grad.fillRect(0, 0, w, h);
+
+    // Soft colour blobs (ambient atmosphere with slow parallax)
+    this.bgBlobs = [];
+    const blobDefs = [
+      { x: 160, y: 120, scale: 2.2, tint: 0x6366f1, alpha: 0.10 },
+      { x: 780, y: 100, scale: 1.8, tint: 0x8b5cf6, alpha: 0.08 },
+      { x: 480, y: 420, scale: 2.5, tint: 0x0ea5e9, alpha: 0.07 },
+      { x: 120, y: 440, scale: 1.6, tint: 0xec4899, alpha: 0.06 },
+      { x: 820, y: 380, scale: 2.0, tint: 0x14b8a6, alpha: 0.06 },
+    ];
+    for (const bd of blobDefs) {
+      const blob = this.add.image(bd.x, bd.y, 'bg-blob')
+        .setScale(bd.scale).setAlpha(bd.alpha).setTint(bd.tint).setDepth(0)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.bgBlobs.push(blob);
+    }
 
     // Vignette + grain overlays
     this.add.image(w / 2, h / 2, 'vignette').setDepth(1);

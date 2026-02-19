@@ -171,5 +171,19 @@ export class BootScene extends Phaser.Scene {
       ctx.putImageData(imgData, 0, 0);
       canvas.refresh();
     }
+
+    // Soft radial blob for background atmosphere
+    {
+      const sz = 256;
+      const canvas = this.textures.createCanvas('bg-blob', sz, sz)!;
+      const ctx = canvas.getContext();
+      const g = ctx.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.35)');
+      g.addColorStop(0.4, 'rgba(255,255,255,0.12)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, sz, sz);
+      canvas.refresh();
+    }
   }
 }

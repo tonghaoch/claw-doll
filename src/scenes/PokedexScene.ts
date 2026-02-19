@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { DOLLS, rarityLabel } from '../data';
 import type { SaveV1 } from '../save';
 
+const UI_FONT = 'Inter, "Noto Sans SC", system-ui, sans-serif';
+
 export class PokedexScene extends Phaser.Scene {
   private save!: SaveV1;
   private keyEsc!: Phaser.Input.Keyboard.Key;
@@ -31,11 +33,11 @@ export class PokedexScene extends Phaser.Scene {
     const owned = Object.values(this.save.counts).filter((n) => n > 0).length;
 
     this.add
-      .text(480, 84, `图鉴 ${owned}/${DOLLS.length}`, { fontSize: '18px', color: '#e5e7eb' })
+      .text(480, 84, `图鉴 ${owned}/${DOLLS.length}`, { fontFamily: UI_FONT, fontSize: '18px', color: '#e5e7eb' })
       .setOrigin(0.5);
 
     this.add
-      .text(480, 110, `Esc 返回`, { fontSize: '14px', color: '#94a3b8' })
+      .text(480, 110, `Esc 返回`, { fontFamily: UI_FONT, fontSize: '13px', color: '#94a3b8' })
       .setOrigin(0.5);
 
     // grid
@@ -66,6 +68,7 @@ export class PokedexScene extends Phaser.Scene {
 
       this.add
         .text(x + 58, y + 16, owned ? d.name : '???', {
+          fontFamily: UI_FONT,
           fontSize: '14px',
           color: owned ? '#e5e7eb' : '#6b7280',
         })
@@ -74,6 +77,7 @@ export class PokedexScene extends Phaser.Scene {
       this.add
         .text(x + 58, y + 36, owned ? `[${rarityLabel(d.rarity)}] x${count}` : `[${rarityLabel(d.rarity)}] 未获得`, {
           fontSize: '12px',
+          fontFamily: UI_FONT,
           color: owned ? '#94a3b8' : '#4b5563',
         })
         .setOrigin(0, 0);

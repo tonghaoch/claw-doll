@@ -1,6 +1,7 @@
 :root {
   /* Bundle fonts via @fontsource to avoid tofu (□) squares */
   font-family:
+    "Inter",
     "Noto Sans SC",
     system-ui,
     -apple-system,
