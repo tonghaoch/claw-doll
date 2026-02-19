@@ -9,14 +9,14 @@ type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
 const UI_FONT = 'Inter, "Noto Sans SC", system-ui, sans-serif';
 
-/* ── Design Tokens (Alto vibe) ─────────────────────────────── */
+/* ── Design Tokens (Alto vibe – warm sunset) ──────────────── */
 const T = {
-  bgDeep: 0x0a0e1a, bgMid: 0x0f172a,
-  cardBg: 0x111827, cardAlpha: 0.84,
-  border: 0x475569, borderAlpha: 0.28,
-  glass: 0x64748b,
-  shadow: 0x000000, shadowAlpha: 0.32,
-  accent: 0xfacc15,
+  bgDeep: 0x2a1a2e, bgMid: 0x3b2240,
+  cardBg: 0x3a2a3e, cardAlpha: 0.82,
+  border: 0x9b7a6e, borderAlpha: 0.30,
+  glass: 0xc9a89a,
+  shadow: 0x1a0e14, shadowAlpha: 0.28,
+  accent: 0xffb347,
   r: 16, rSm: 10, rPill: 28,
   fast: 180, med: 220, slow: 260,
   ease: 'Cubic.easeOut' as const,
@@ -115,9 +115,9 @@ export class GameScene extends Phaser.Scene {
 
     // Luck bar (modern rounded)
     const luckBg = this.add.graphics().setDepth(10);
-    luckBg.fillStyle(0x1e293b, 1);
+    luckBg.fillStyle(0x4a3055, 1);
     luckBg.fillRoundedRect(16, 44, 200, 8, 4);
-    this.luckBarFill = this.add.rectangle(16, 48, 0, 6, 0x22c55e, 1).setOrigin(0, 0.5).setDepth(11);
+    this.luckBarFill = this.add.rectangle(16, 48, 0, 6, 0x66bb6a, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
       .text(480, 40, '', {
@@ -206,28 +206,28 @@ export class GameScene extends Phaser.Scene {
     const w = 960;
     const h = 540;
 
-    // Multi-stop gradient background
+    // Multi-stop gradient background (warm sunset)
     const bg = this.add.graphics().setDepth(0);
-    bg.fillGradientStyle(T.bgDeep, 0x0b1024, T.bgMid, 0x111a32, 1, 1, 1, 1);
+    bg.fillGradientStyle(0xf7c59f, 0xf0a87e, 0xf0917a, 0xe87e8a, 1, 1, 1, 1);
     bg.fillRect(0, 0, w, Math.ceil(h * 0.45));
-    bg.fillGradientStyle(T.bgMid, 0x111a32, 0x1a1535, 0x1e1b4b, 1, 1, 1, 1);
+    bg.fillGradientStyle(0xf0917a, 0xe87e8a, 0xc06a8e, 0x8a4f7d, 1, 1, 1, 1);
     bg.fillRect(0, Math.floor(h * 0.45), w, Math.ceil(h * 0.3));
-    bg.fillGradientStyle(0x1a1535, 0x1e1b4b, 0x12101e, 0x0c0a14, 1, 1, 1, 1);
+    bg.fillGradientStyle(0x8a4f7d, 0x7a4572, 0x4a3055, 0x3b2240, 1, 1, 1, 1);
     bg.fillRect(0, Math.floor(h * 0.75), w, Math.ceil(h * 0.25) + 1);
 
-    // Subtle colour wash
+    // Subtle warm colour wash
     const grad = this.add.graphics().setDepth(0);
-    grad.fillGradientStyle(0x3b82f6, 0x8b5cf6, 0x06b6d4, 0xec4899, 0.06, 0.06, 0.06, 0.06);
+    grad.fillGradientStyle(0xffb347, 0xff8c69, 0x2ec4b6, 0xf06292, 0.07, 0.07, 0.07, 0.07);
     grad.fillRect(0, 0, w, h);
 
     // Soft colour blobs (ambient atmosphere with slow parallax)
     this.bgBlobs = [];
     const blobDefs = [
-      { x: 160, y: 120, scale: 2.2, tint: 0x6366f1, alpha: 0.10 },
-      { x: 780, y: 100, scale: 1.8, tint: 0x8b5cf6, alpha: 0.08 },
-      { x: 480, y: 420, scale: 2.5, tint: 0x0ea5e9, alpha: 0.07 },
-      { x: 120, y: 440, scale: 1.6, tint: 0xec4899, alpha: 0.06 },
-      { x: 820, y: 380, scale: 2.0, tint: 0x14b8a6, alpha: 0.06 },
+      { x: 160, y: 120, scale: 2.2, tint: 0xffa07a, alpha: 0.12 },
+      { x: 780, y: 100, scale: 1.8, tint: 0xffcc80, alpha: 0.10 },
+      { x: 480, y: 420, scale: 2.5, tint: 0x2ec4b6, alpha: 0.08 },
+      { x: 120, y: 440, scale: 1.6, tint: 0xf48fb1, alpha: 0.08 },
+      { x: 820, y: 380, scale: 2.0, tint: 0xff8a65, alpha: 0.07 },
     ];
     for (const bd of blobDefs) {
       const blob = this.add.image(bd.x, bd.y, 'bg-blob')
@@ -250,9 +250,9 @@ export class GameScene extends Phaser.Scene {
     const boxH = 320;
 
     const g = this.add.graphics().setDepth(2);
-    g.fillStyle(0x1e293b, 1);
+    g.fillStyle(0x4a3055, 1);
     g.fillRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, T.rSm);
-    g.fillStyle(T.bgMid, 0.92);
+    g.fillStyle(T.bgMid, 0.90);
     g.fillRoundedRect(boxX, boxY, boxW, boxH, T.rSm);
     g.lineStyle(2, T.border, 0.6);
     g.strokeRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, T.rSm);
@@ -271,14 +271,14 @@ export class GameScene extends Phaser.Scene {
     // Bottom filler layer inside box (gradient + subtle noise)
     const filler = this.add.graphics().setDepth(3);
     const fillerH = 60;
-    filler.fillGradientStyle(0x1e293b, 0x1e293b, 0x0f172a, 0x0f172a, 0, 0, 0.35, 0.35);
+    filler.fillGradientStyle(0x4a3055, 0x4a3055, 0x3b2240, 0x3b2240, 0, 0, 0.35, 0.35);
     filler.fillRect(boxX + 4, boxY + boxH - fillerH, boxW - 8, fillerH);
     // Subtle noise using spark textures
     for (let i = 0; i < 18; i++) {
       const nx = Phaser.Math.Between(boxX + 10, boxX + boxW - 10);
       const ny = Phaser.Math.Between(boxY + boxH - fillerH + 5, boxY + boxH - 8);
       this.add.image(nx, ny, 'spark').setScale(Phaser.Math.FloatBetween(0.4, 0.8))
-        .setAlpha(Phaser.Math.FloatBetween(0.02, 0.06)).setDepth(3).setTint(0x334155);
+        .setAlpha(Phaser.Math.FloatBetween(0.02, 0.06)).setDepth(3).setTint(0x6b5060);
     }
 
     this.box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x000000, 0).setOrigin(0);
@@ -584,7 +584,7 @@ export class GameScene extends Phaser.Scene {
 
     if (f.flash > 0) {
       // SSR: colorful screen tint instead of white
-      this.flash.setFillStyle(0x6a0dad, 1);
+      this.flash.setFillStyle(0xff6e40, 1);
       this.flash.setAlpha(f.flash * 0.6);
       this.tweens.add({
         targets: this.flash,
@@ -640,14 +640,14 @@ export class GameScene extends Phaser.Scene {
     const ratio = Phaser.Math.Clamp(this.luckBonus / max, 0, 1);
     this.luckBarFill.width = Math.max(0, Math.round(fullW * ratio));
     // green -> yellow near max
-    this.luckBarFill.fillColor = this.luckBonus > 0.25 ? 0xf59e0b : 0x22c55e;
+    this.luckBarFill.fillColor = this.luckBonus > 0.25 ? 0xffb347 : 0x66bb6a;
   }
 
   private createStartOverlay() {
     this.started = false;
 
     const panel = this.add.graphics();
-    panel.fillStyle(0x000000, 0.55);
+    panel.fillStyle(0x2a1a2e, 0.50);
     panel.fillRect(0, 0, 960, 540);
 
     const card = this.add.graphics();
@@ -686,13 +686,13 @@ export class GameScene extends Phaser.Scene {
 
     // Primary button style
     const btnGfx = this.add.graphics();
-    btnGfx.fillStyle(0xfacc15, 1);
+    btnGfx.fillStyle(0xffb347, 1);
     btnGfx.fillRoundedRect(400, 330, 160, 44, 22);
     const start = this.add.text(480, 352, 'Press Space', {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '16px',
-      color: '#1c1917',
+      color: '#2a1a2e',
     }).setOrigin(0.5);
 
     this.tweens.add({
@@ -738,7 +738,7 @@ export class GameScene extends Phaser.Scene {
     this.clearAimedTarget();
 
     const panel = this.add.graphics();
-    panel.fillStyle(0x0b1020, 0.88);
+    panel.fillStyle(0x2a1a2e, 0.82);
     panel.fillRect(0, 0, 960, 540);
 
     const card = this.add.graphics();
@@ -767,14 +767,14 @@ export class GameScene extends Phaser.Scene {
 
     // Primary button
     const btnGfx = this.add.graphics();
-    btnGfx.fillStyle(0xfacc15, 1);
+    btnGfx.fillStyle(0xffb347, 1);
     btnGfx.fillRoundedRect(400, 300, 160, 44, 22);
     const hint = this.add
       .text(480, 322, 'Press Space', {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
         fontSize: '16px',
-        color: '#1c1917',
+        color: '#2a1a2e',
       })
       .setOrigin(0.5);
 
@@ -1132,7 +1132,7 @@ export class GameScene extends Phaser.Scene {
       slotGfx.lineStyle(1, T.border, T.borderAlpha);
       slotGfx.strokeRoundedRect(sx, sy - size / 2, size, size, T.rSm);
       // Keep reference as image placeholder (use a small rect for tint animation)
-      const slotImg = this.add.rectangle(sx + size / 2, sy, size - 2, size - 2, 0x0f172a, 0)
+      const slotImg = this.add.rectangle(sx + size / 2, sy, size - 2, size - 2, 0x3b2240, 0)
         .setDepth(31);
       slotImgs.push(slotImg);
 
@@ -1142,7 +1142,7 @@ export class GameScene extends Phaser.Scene {
       // selected highlight (first slot) — pulsing border
       if (i === 0) {
         this.hotbarSelectedBorder = this.add.rectangle(sx + size / 2, sy, size + 4, size + 4)
-          .setDepth(33).setStrokeStyle(2, 0xfacc15, 1);
+          .setDepth(33).setStrokeStyle(2, 0xffb347, 1);
         this.tweens.add({
           targets: this.hotbarSelectedBorder,
           alpha: { from: 0.45, to: 1 },
@@ -1151,7 +1151,7 @@ export class GameScene extends Phaser.Scene {
           repeat: -1,
           ease: 'Sine.easeInOut',
         });
-        this.hotbarSlotGlow = this.add.rectangle(sx + size / 2, sy, size + 8, size + 8, 0xfacc15, 0)
+        this.hotbarSlotGlow = this.add.rectangle(sx + size / 2, sy, size + 8, size + 8, 0xffb347, 0)
           .setDepth(30);
       }
     }

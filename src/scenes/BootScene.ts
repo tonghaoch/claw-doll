@@ -259,14 +259,14 @@ export class BootScene extends Phaser.Scene {
       canvas.refresh();
     }
 
-    // Vignette overlay (dark corners)
+    // Vignette overlay (warm corners, reduced strength)
     {
       const w = 960, h = 540;
       const canvas = this.textures.createCanvas('vignette', w, h)!;
       const ctx = canvas.getContext();
-      const gradient = ctx.createRadialGradient(w / 2, h / 2, w * 0.28, w / 2, h / 2, w * 0.72);
+      const gradient = ctx.createRadialGradient(w / 2, h / 2, w * 0.30, w / 2, h / 2, w * 0.74);
       gradient.addColorStop(0, 'rgba(0,0,0,0)');
-      gradient.addColorStop(1, 'rgba(0,0,0,0.6)');
+      gradient.addColorStop(1, 'rgba(42,26,46,0.38)');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, w, h);
       canvas.refresh();

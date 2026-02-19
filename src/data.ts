@@ -25,10 +25,10 @@ export const DOLLS: DollDef[] = [
 ];
 
 export const rarityColor: Record<Rarity, string> = {
-  N: '#e5e7eb',
-  R: '#3498db',
-  SR: '#9b59b6',
-  SSR: '#f1c40f',
+  N: '#f5e6d3',
+  R: '#4fc3f7',
+  SR: '#ff8a65',
+  SSR: '#ffd54f',
 };
 
 export function rarityLabel(r: Rarity) {

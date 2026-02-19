@@ -25,7 +25,7 @@ export class PokedexScene extends Phaser.Scene {
     const panel = this.add.graphics();
     panel.fillStyle(0x0b1020, 0.92);
     panel.fillRect(0, 0, w, h);
-    panel.fillStyle(0x111827, 1);
+    panel.fillStyle(0x3a2a3e, 1);
     panel.fillRoundedRect(80, 60, 800, 420, 10);
     panel.lineStyle(2, 0x334155, 1);
     panel.strokeRoundedRect(80, 60, 800, 420, 10);
@@ -58,7 +58,7 @@ export class PokedexScene extends Phaser.Scene {
       const owned = count > 0;
 
       const g = this.add.graphics();
-      g.fillStyle(owned ? 0x0f172a : 0x0b1020, 1);
+      g.fillStyle(owned ? 0x3b2240 : 0x2a1a2e, 1);
       g.fillRoundedRect(x, y, 160, 62, 8);
       g.lineStyle(2, owned ? 0x64748b : 0x1f2937, 1);
       g.strokeRoundedRect(x, y, 160, 62, 8);
