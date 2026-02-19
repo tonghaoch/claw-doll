@@ -1,25 +1,47 @@
 # claw-doll
 
-像素风 Web 抓娃娃（非真实物理）——目标是收集图鉴。
+A pixel-art **web claw machine** game (not a real physics simulation). Your goal is to catch dolls and **complete the Pokédex/collection**.
+
+Built with **Phaser 3** + **TypeScript** and bundled by **Vite**.
+
+## Gameplay
+
+- Move the claw, drop it, and try to grab dolls.
+- Progress is stored locally (browser storage) so you can continue later.
 
 ## Controls
 
-- `←/→` 移动爪子
-- `Space` 下爪
-- `P` 打开图鉴
-- `Esc` 从图鉴返回
-- `R` 清空本地存档
+- **Left / Right**: move the claw
+- **Space**: drop the claw
+- **P**: open Pokédex / collection
+- **Esc**: close Pokédex
+- **R**: reset local save data
 
-## Dev
+## Development
+
+Requirements: Node.js + npm
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Build
+Then open the local URL printed by Vite.
+
+## Build & Preview
 
 ```bash
 npm run build
 npm run preview
 ```
+
+> Note: Vite may warn about large chunks after minification. This project is small enough for now; if it becomes a problem, we can introduce code-splitting (dynamic `import()` / Rollup `manualChunks`).
+
+## Project Notes
+
+- This game is intentionally **arcade-like**: the claw behavior is tuned for feel, not physical accuracy.
+- Reference screenshots used during visual polish are stored in `docs/refs/`.
+
+## License
+
+See `LICENSES/`.
