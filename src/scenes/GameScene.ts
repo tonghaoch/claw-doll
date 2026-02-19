@@ -149,7 +149,6 @@ export class GameScene extends Phaser.Scene {
     this.events.on('resume', () => this.playClosePokedexSfx());
 
     this.createStartOverlay();
-    this.showToast('Ready? Press Space', 1600, '#94a3b8');
   }
 
   update(_t: number, dtMs: number) {
