@@ -90,6 +90,7 @@ export class GameScene extends Phaser.Scene {
   // Enable by opening the game with: ?debugGrab=1
   private debugGrab = false;
   private dropDebugHitShown = false;
+  private grabDebugGfx?: Phaser.GameObjects.Graphics;
 
   constructor() {
     super('game');
@@ -479,8 +480,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private findGrabCandidate(): DollSprite | undefined {
-    // Find nearest doll under claw arms area
-    const clawRect = new Phaser.Geom.Rectangle(this.clawX - 28, this.clawY + 36, 56, 28);
+    // Find nearest doll under claw arms area.
+    // Tuned so "visually touching" is more likely to register, especially on mobile.
+    // The claw arms sprite is around (clawY + 28). The actual "pinch" feels closer to ~ (clawY + 46).
+    const grabW = 66;
+    const grabH = 44;
+    const grabX = this.clawX - grabW / 2;
+    const grabY = this.clawY + 30;
+    const clawRect = new Phaser.Geom.Rectangle(grabX, grabY, grabW, grabH);
+
+    if (this.debugGrab) {
+      // Lazy-init the debug graphics (reuses the same object)
+      const g = (this.grabDebugGfx ??= this.add.graphics().setDepth(9999));
+      g.lineStyle(2, 0xf59e0b, 0.9);
+      g.strokeRectShape(clawRect);
+    }
 
     let best: DollSprite | undefined;
     let bestDist = Number.POSITIVE_INFINITY;
