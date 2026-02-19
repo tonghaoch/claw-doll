@@ -87,6 +87,10 @@ export class GameScene extends Phaser.Scene {
 
   private save = loadSave();
 
+  // Enable by opening the game with: ?debugGrab=1
+  private debugGrab = false;
+  private dropDebugHitShown = false;
+
   constructor() {
     super('game');
   }
@@ -101,6 +105,8 @@ export class GameScene extends Phaser.Scene {
     this.keyM = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
 
     this.sfxEnabled = localStorage.getItem('claw-doll-sfx') !== 'off';
+
+    this.debugGrab = new URLSearchParams(window.location.search).get('debugGrab') === '1';
 
     this.drawScene();
     this.spawnDolls();
@@ -418,6 +424,7 @@ export class GameScene extends Phaser.Scene {
 
         this.state = 'dropping';
         this.grabbed = undefined;
+        this.dropDebugHitShown = false;
         this.clawArms.setTexture('claw-arms-open');
       }
     } else {
@@ -435,6 +442,10 @@ export class GameScene extends Phaser.Scene {
       // If nothing is hit, we will attempt once at max depth.
       const hit = this.findGrabCandidate();
       if (hit) {
+        if (this.debugGrab && !this.dropDebugHitShown) {
+          this.dropDebugHitShown = true;
+          this.showToast(`HIT: ${hit.def.name}`, 800, '#22c55e');
+        }
         this.state = 'grabbing';
         this.tryGrab(hit);
       } else if (this.clawY >= this.clawMaxY) {
@@ -503,6 +514,14 @@ export class GameScene extends Phaser.Scene {
     // Success check with pity/luck bonus
     const chance = Phaser.Math.Clamp(best.def.catchRate + this.luckBonus, 0, 0.95);
     const roll = Math.random();
+
+    if (this.debugGrab) {
+      const msg = `GRAB? ${best.def.name} chance=${chance.toFixed(2)} roll=${roll.toFixed(2)}`;
+      this.showToast(msg, 900, '#60a5fa');
+      // Also log to console for desktop debugging.
+      // eslint-disable-next-line no-console
+      console.log('[grab]', { name: best.def.name, chance, roll, luckBonus: this.luckBonus, catchRate: best.def.catchRate });
+    }
 
     if (roll <= chance) {
       // Grab it
