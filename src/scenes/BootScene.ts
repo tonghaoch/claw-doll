@@ -191,33 +191,68 @@ export class BootScene extends Phaser.Scene {
       canvas.refresh();
     }
 
-    // Claw body (smooth rounded)
+    // Claw body (metallic with dark outline for warm-bg contrast)
     {
-      const canvas = this.textures.createCanvas('claw-body', 28, 18)!;
+      const canvas = this.textures.createCanvas('claw-body', 30, 20)!;
       const ctx = canvas.getContext();
-      rrect(ctx, 1, 1, 26, 16, 6);
-      const g = ctx.createLinearGradient(0, 0, 0, 18);
-      g.addColorStop(0, '#cfd8dc');
-      g.addColorStop(1, '#90a4ae');
+      // Dark outline
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetY = 1;
+      rrect(ctx, 1, 1, 28, 18, 6);
+      ctx.fillStyle = '#3a3a40';
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      // Metallic gradient fill
+      rrect(ctx, 2, 2, 26, 16, 5);
+      const g = ctx.createLinearGradient(0, 2, 0, 18);
+      g.addColorStop(0, '#e8edf0');
+      g.addColorStop(0.35, '#b8c4cc');
+      g.addColorStop(0.65, '#8a9aa6');
+      g.addColorStop(1, '#6b7b88');
       ctx.fillStyle = g;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = 1;
+      // Top highlight edge
+      rrect(ctx, 4, 3, 22, 6, 3);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fill();
+      // Dark border
+      rrect(ctx, 1, 1, 28, 18, 6);
+      ctx.strokeStyle = '#2a2a30';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
       canvas.refresh();
     }
+
+    // Claw arms helper: draw one arm piece with metallic look
+    const drawArmPiece = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+      rrect(ctx, x, y, w, h, r);
+      ctx.fillStyle = '#3a3a40';
+      ctx.fill();
+      rrect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, r);
+      const ag = ctx.createLinearGradient(x, y, x, y + h);
+      ag.addColorStop(0, '#d0d8dd');
+      ag.addColorStop(0.5, '#98a8b4');
+      ag.addColorStop(1, '#707e88');
+      ctx.fillStyle = ag;
+      ctx.fill();
+      rrect(ctx, x, y, w, h, r);
+      ctx.strokeStyle = '#2a2a30';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    };
 
     // Claw arms (open)
     {
       const canvas = this.textures.createCanvas('claw-arms-open', 28, 20)!;
       const ctx = canvas.getContext();
-      ctx.fillStyle = '#b0bec5';
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 1;
-      rrect(ctx, 0, 0, 7, 18, 3); ctx.fill(); ctx.stroke();
-      rrect(ctx, 0, 15, 12, 4, 2); ctx.fill(); ctx.stroke();
-      rrect(ctx, 21, 0, 7, 18, 3); ctx.fill(); ctx.stroke();
-      rrect(ctx, 16, 15, 12, 4, 2); ctx.fill(); ctx.stroke();
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowBlur = 2;
+      ctx.shadowOffsetY = 1;
+      drawArmPiece(ctx, 0, 0, 7, 18, 3);
+      drawArmPiece(ctx, 0, 15, 12, 4, 2);
+      drawArmPiece(ctx, 21, 0, 7, 18, 3);
+      drawArmPiece(ctx, 16, 15, 12, 4, 2);
       canvas.refresh();
     }
 
@@ -225,13 +260,13 @@ export class BootScene extends Phaser.Scene {
     {
       const canvas = this.textures.createCanvas('claw-arms-closed', 28, 20)!;
       const ctx = canvas.getContext();
-      ctx.fillStyle = '#b0bec5';
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 1;
-      rrect(ctx, 2, 0, 7, 18, 3); ctx.fill(); ctx.stroke();
-      rrect(ctx, 5, 15, 12, 4, 2); ctx.fill(); ctx.stroke();
-      rrect(ctx, 19, 0, 7, 18, 3); ctx.fill(); ctx.stroke();
-      rrect(ctx, 11, 15, 12, 4, 2); ctx.fill(); ctx.stroke();
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowBlur = 2;
+      ctx.shadowOffsetY = 1;
+      drawArmPiece(ctx, 2, 0, 7, 18, 3);
+      drawArmPiece(ctx, 5, 15, 12, 4, 2);
+      drawArmPiece(ctx, 19, 0, 7, 18, 3);
+      drawArmPiece(ctx, 11, 15, 12, 4, 2);
       canvas.refresh();
     }
 

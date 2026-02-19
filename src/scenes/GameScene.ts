@@ -41,6 +41,7 @@ export class GameScene extends Phaser.Scene {
   private clawBody!: Phaser.GameObjects.Image;
   private clawArms!: Phaser.GameObjects.Image;
   private clawString!: Phaser.GameObjects.Rectangle;
+  private clawShadow!: Phaser.GameObjects.Ellipse;
   private aimLine!: Phaser.GameObjects.Graphics;
 
   private luckBarFill!: Phaser.GameObjects.Rectangle;
@@ -243,29 +244,38 @@ export class GameScene extends Phaser.Scene {
     // Animated dust particles
     this.time.addEvent({ delay: 350, loop: true, callback: () => this.spawnDust() });
 
-    // box — glass container
+    // box — modern glass arcade container
     const boxX = 160;
     const boxY = 140;
     const boxW = 640;
     const boxH = 320;
 
+    // Outer frame with subtle depth
     const g = this.add.graphics().setDepth(2);
-    g.fillStyle(0x4a3055, 1);
-    g.fillRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, T.rSm);
-    g.fillStyle(T.bgMid, 0.90);
+    g.fillStyle(0x3a2245, 1);
+    g.fillRoundedRect(boxX - 10, boxY - 10, boxW + 20, boxH + 20, T.r);
+    // Inner fill — slightly lighter than background for doll readability
+    g.fillStyle(0x2e1a34, 0.95);
     g.fillRoundedRect(boxX, boxY, boxW, boxH, T.rSm);
-    g.lineStyle(2, T.border, 0.6);
-    g.strokeRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, T.rSm);
-    g.lineStyle(1, T.border, T.borderAlpha);
+    // Outer border (darker, heavier)
+    g.lineStyle(2.5, 0x6b5570, 0.7);
+    g.strokeRoundedRect(boxX - 10, boxY - 10, boxW + 20, boxH + 20, T.r);
+    // Inner border
+    g.lineStyle(1.5, T.border, 0.45);
     g.strokeRoundedRect(boxX, boxY, boxW, boxH, T.rSm);
-    g.lineStyle(1, T.glass, 0.18);
+    // Inner inset line (glass edge)
+    g.lineStyle(1, T.glass, 0.14);
     g.strokeRoundedRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, 8);
 
-    // Inner shadow/highlight for glass effect
+    // Glass reflection highlight (top)
     const sh = this.add.graphics().setDepth(6);
-    sh.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.06, 0.06, 0, 0);
-    sh.fillRect(boxX + 6, boxY + 4, boxW - 12, 24);
-    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.1, 0.1);
+    sh.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.10, 0.10, 0, 0);
+    sh.fillRect(boxX + 8, boxY + 4, boxW - 16, 18);
+    // Diagonal reflection streak
+    sh.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.05, 0, 0, 0.05);
+    sh.fillRect(boxX + 40, boxY + 6, 120, 8);
+    // Bottom inner shadow
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.14, 0.14);
     sh.fillRect(boxX + 6, boxY + boxH - 28, boxW - 12, 24);
 
     // Bottom filler layer inside box (gradient + subtle noise)
@@ -288,9 +298,12 @@ export class GameScene extends Phaser.Scene {
     this.clawTopY = 70;
     this.clawY = this.clawTopY;
 
-    this.clawString = this.add.rectangle(this.clawX, this.clawTopY, 2, 1, 0x94a3b8).setOrigin(0.5, 0).setDepth(7);
+    this.clawString = this.add.rectangle(this.clawX, this.clawTopY, 2, 1, 0x5a6670).setOrigin(0.5, 0).setDepth(7);
     this.clawBody = this.add.image(this.clawX, this.clawTopY + 18, 'claw-body').setOrigin(0.5, 0.5).setDepth(7);
     this.clawArms = this.add.image(this.clawX, this.clawTopY + 32, 'claw-arms-open').setOrigin(0.5, 0).setDepth(7);
+
+    // Claw drop shadow for contrast on warm backgrounds
+    this.clawShadow = this.add.ellipse(this.clawX, this.clawTopY + 38, 32, 10, 0x000000, 0.30).setDepth(6);
 
     this.clawMaxY = boxY + boxH - 20;
 
@@ -444,6 +457,7 @@ export class GameScene extends Phaser.Scene {
     this.clawString.height = Math.max(1, this.clawY - this.clawTopY);
     this.clawBody.setPosition(this.clawX, this.clawY + 18);
     this.clawArms.setPosition(this.clawX, this.clawY + 28);
+    this.clawShadow.setPosition(this.clawX, this.clawY + 38);
   }
 
   private tryGrab() {
