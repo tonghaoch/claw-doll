@@ -194,7 +194,7 @@ export class GameScene extends Phaser.Scene {
       clearSave();
       this.save = newSave();
       saveNow(this.save);
-      this.showToast('Reset OK', 1200, '#94a3b8');
+      this.showToast('Reset done', 1200, '#94a3b8');
       this.updateHud();
       this.updateHotbar();
     }
@@ -584,7 +584,7 @@ export class GameScene extends Phaser.Scene {
       this.playSSRArpeggio();
     }
 
-    this.showToast(`GET! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
+    this.showToast(`Got! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
     this.playWinSfx(def);
     this.animatePickupToHotbar(def);
     this.updateHotbar();
@@ -594,8 +594,8 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.luckBarFill,
       width: 0,
-      duration: 180,
-      ease: 'Sine.easeOut',
+      duration: T.fast,
+      ease: T.ease,
     });
   }
 
@@ -635,21 +635,17 @@ export class GameScene extends Phaser.Scene {
     panel.fillStyle(0x000000, 0.55);
     panel.fillRect(0, 0, 960, 540);
 
-    // Modern card with rounded corners and shadow
     const card = this.add.graphics();
     const x = 240;
     const y = 140;
     const w = 480;
     const h = 260;
-    // Drop shadow
-    card.fillStyle(0x000000, 0.25);
-    card.fillRoundedRect(x + 4, y + 6, w, h, 20);
-    // Card body
-    card.fillStyle(0x111827, 0.96);
-    card.fillRoundedRect(x, y, w, h, 20);
-    // Subtle border
-    card.lineStyle(1, 0x334155, 0.5);
-    card.strokeRoundedRect(x, y, w, h, 20);
+    card.fillStyle(T.shadow, T.shadowAlpha);
+    card.fillRoundedRect(x + 3, y + 4, w, h, T.r);
+    card.fillStyle(T.cardBg, 0.96);
+    card.fillRoundedRect(x, y, w, h, T.r);
+    card.lineStyle(1, T.border, T.borderAlpha);
+    card.strokeRoundedRect(x, y, w, h, T.r);
 
     const title = this.add.text(480, 185, 'Claw Doll', {
       fontFamily: UI_FONT,
@@ -694,6 +690,14 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.startOverlay = this.add.container(0, 0, [panel, card, title, subtitle, how, btnGfx, start]).setDepth(100);
+    this.startOverlay.setAlpha(0);
+    this.tweens.add({
+      targets: this.startOverlay,
+      alpha: 1,
+      y: { from: 8, to: 0 },
+      duration: T.slow,
+      ease: T.ease,
+    });
   }
 
   private startRound() {
@@ -723,14 +727,12 @@ export class GameScene extends Phaser.Scene {
     panel.fillRect(0, 0, 960, 540);
 
     const card = this.add.graphics();
-    // Drop shadow
-    card.fillStyle(0x000000, 0.25);
-    card.fillRoundedRect(244, 166, 480, 220, 20);
-    // Card body
-    card.fillStyle(0x111827, 1);
-    card.fillRoundedRect(240, 160, 480, 220, 20);
-    card.lineStyle(1, 0x334155, 0.5);
-    card.strokeRoundedRect(240, 160, 480, 220, 20);
+    card.fillStyle(T.shadow, T.shadowAlpha);
+    card.fillRoundedRect(243, 164, 480, 220, T.r);
+    card.fillStyle(T.cardBg, 0.96);
+    card.fillRoundedRect(240, 160, 480, 220, T.r);
+    card.lineStyle(1, T.border, T.borderAlpha);
+    card.strokeRoundedRect(240, 160, 480, 220, T.r);
 
     const newCount = this.roundNew.size;
     const title = this.add.text(480, 205, 'Round Over', {
@@ -771,6 +773,14 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, btnGfx, hint]).setDepth(120);
+    this.roundOverlay.setAlpha(0);
+    this.tweens.add({
+      targets: this.roundOverlay,
+      alpha: 1,
+      y: { from: 8, to: 0 },
+      duration: T.med,
+      ease: T.ease,
+    });
     this.playRoundOverSfx();
 
     // One-shot key handler
@@ -847,21 +857,21 @@ export class GameScene extends Phaser.Scene {
     this.toastText.setY(48);
 
     this.tweens.killTweensOf(this.toastText);
-    // Subtle slide-down entrance
     this.tweens.add({
       targets: this.toastText,
       y: { from: 30, to: 40 },
       alpha: { from: 0, to: 1 },
-      duration: 250,
-      ease: 'Cubic.easeOut',
+      scale: { from: 0.92, to: 1 },
+      duration: T.med,
+      ease: T.ease,
     });
     this.tweens.add({
       targets: this.toastText,
       alpha: 0,
       y: 36,
       delay: ms,
-      duration: 400,
-      ease: 'Sine.easeIn',
+      duration: T.slow,
+      ease: T.easeIn,
     });
   }
 
@@ -1072,10 +1082,9 @@ export class GameScene extends Phaser.Scene {
   private toggleMute() {
     this.sfxEnabled = !this.sfxEnabled;
     localStorage.setItem('claw-doll-sfx', this.sfxEnabled ? 'on' : 'off');
-    this.showToast(this.sfxEnabled ? 'SFX On' : 'SFX Off', 800, '#94a3b8');
+    this.showToast(this.sfxEnabled ? 'Sound on' : 'Sound off', 800, '#94a3b8');
     if (this.sfxLabel) {
-      this.sfxLabel.setText(this.sfxEnabled ? '\u266b On' : '\u266b Off');
-      this.sfxLabel.setStyle({ color: this.sfxEnabled ? '#22c55e' : '#ef4444' });
+      this.sfxLabel.setStyle({ color: this.sfxEnabled ? '#e2e8f0' : '#4b5563' });
     }
   }
 
@@ -1088,16 +1097,13 @@ export class GameScene extends Phaser.Scene {
     const totalW = slots * size + (slots - 1) * pad + 20;
     const x0 = cx - totalW / 2;
 
-    // Modern pill hotbar background with drop shadow
     const bgGfx = this.add.graphics().setDepth(30);
-    // Shadow
-    bgGfx.fillStyle(0x000000, 0.2);
-    bgGfx.fillRoundedRect(cx - totalW / 2 + 2, y - 28 + 3, totalW, 56, 28);
-    // Pill body
-    bgGfx.fillStyle(0x1e293b, 0.88);
-    bgGfx.fillRoundedRect(cx - totalW / 2, y - 28, totalW, 56, 28);
-    bgGfx.lineStyle(1, 0x334155, 0.4);
-    bgGfx.strokeRoundedRect(cx - totalW / 2, y - 28, totalW, 56, 28);
+    bgGfx.fillStyle(T.shadow, T.shadowAlpha);
+    bgGfx.fillRoundedRect(cx - totalW / 2 + 2, y - 28 + 3, totalW, 56, T.rPill);
+    bgGfx.fillStyle(T.cardBg, T.cardAlpha);
+    bgGfx.fillRoundedRect(cx - totalW / 2, y - 28, totalW, 56, T.rPill);
+    bgGfx.lineStyle(1, T.border, T.borderAlpha);
+    bgGfx.strokeRoundedRect(cx - totalW / 2, y - 28, totalW, 56, T.rPill);
 
     const icons: Phaser.GameObjects.Image[] = [];
     const slotImgs: Phaser.GameObjects.Rectangle[] = [];
@@ -1105,12 +1111,11 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < slots; i++) {
       const sx = x0 + 10 + i * (size + pad);
       const sy = y - size / 2;
-      // Modern rounded slot background
       const slotGfx = this.add.graphics().setDepth(31);
-      slotGfx.fillStyle(0x0f172a, 0.85);
-      slotGfx.fillRoundedRect(sx, sy - size / 2, size, size, 8);
-      slotGfx.lineStyle(1, 0x475569, 0.3);
-      slotGfx.strokeRoundedRect(sx, sy - size / 2, size, size, 8);
+      slotGfx.fillStyle(T.bgMid, 0.85);
+      slotGfx.fillRoundedRect(sx, sy - size / 2, size, size, T.rSm);
+      slotGfx.lineStyle(1, T.border, T.borderAlpha);
+      slotGfx.strokeRoundedRect(sx, sy - size / 2, size, size, T.rSm);
       // Keep reference as image placeholder (use a small rect for tint animation)
       const slotImg = this.add.rectangle(sx + size / 2, sy, size - 2, size - 2, 0x0f172a, 0)
         .setDepth(31);
@@ -1156,29 +1161,44 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(34);
 
-    // Clickable SFX button — modern pill
+    // SFX circle icon button
+    const sfxCx = cx + totalW / 2 + 24;
+    const sfxR = 18;
     const sfxBtnGfx = this.add.graphics().setDepth(34);
-    sfxBtnGfx.fillStyle(0x1e293b, 0.9);
-    sfxBtnGfx.fillRoundedRect(cx + totalW / 2 + 6, y - 14, 52, 28, 14);
-    sfxBtnGfx.lineStyle(1, 0x334155, 0.4);
-    sfxBtnGfx.strokeRoundedRect(cx + totalW / 2 + 6, y - 14, 52, 28, 14);
-    // Invisible hit area over the pill
-    const sfxBtnBg = this.add.rectangle(cx + totalW / 2 + 32, y, 52, 28, 0x000000, 0)
+    const drawSfxBtn = (pressed = false) => {
+      sfxBtnGfx.clear();
+      sfxBtnGfx.fillStyle(T.cardBg, pressed ? 1 : 0.9);
+      sfxBtnGfx.fillCircle(sfxCx, y, sfxR);
+      sfxBtnGfx.lineStyle(1, T.border, T.borderAlpha);
+      sfxBtnGfx.strokeCircle(sfxCx, y, sfxR);
+    };
+    drawSfxBtn();
+    const sfxBtnBg = this.add.rectangle(sfxCx, y, sfxR * 2, sfxR * 2, 0x000000, 0)
       .setDepth(34);
     this.sfxLabel = this.add
-      .text(cx + totalW / 2 + 32, y, this.sfxEnabled ? '\u266b On' : '\u266b Off', {
+      .text(sfxCx, y, '\u266b', {
         fontFamily: UI_FONT,
-        fontStyle: '600',
-        fontSize: '11px',
-        color: this.sfxEnabled ? '#22c55e' : '#ef4444',
+        fontSize: '18px',
+        color: this.sfxEnabled ? '#e2e8f0' : '#4b5563',
       })
       .setOrigin(0.5, 0.5)
       .setDepth(35);
-    // Make both clickable
     sfxBtnBg.setInteractive({ useHandCursor: true });
-    sfxBtnBg.on('pointerdown', () => { this.toggleMute(); this.playBtnClickSfx(); });
-    sfxBtnBg.on('pointerover', () => { sfxBtnBg.setAlpha(0.3); this.playBtnHoverSfx(); });
-    sfxBtnBg.on('pointerout', () => { sfxBtnBg.setAlpha(0); });
+    sfxBtnBg.on('pointerdown', () => {
+      drawSfxBtn(true);
+      this.toggleMute();
+      this.playBtnClickSfx();
+    });
+    sfxBtnBg.on('pointerup', () => drawSfxBtn());
+    sfxBtnBg.on('pointerover', () => {
+      sfxBtnGfx.clear();
+      sfxBtnGfx.fillStyle(0x1e293b, 1);
+      sfxBtnGfx.fillCircle(sfxCx, y, sfxR);
+      sfxBtnGfx.lineStyle(1.5, T.accent, 0.5);
+      sfxBtnGfx.strokeCircle(sfxCx, y, sfxR);
+      this.playBtnHoverSfx();
+    });
+    sfxBtnBg.on('pointerout', () => drawSfxBtn());
 
     this.add.container(0, 0, [bgGfx, hint, keyHints]).setDepth(30);
     this.hotbarIcons = icons;
