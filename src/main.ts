@@ -15,7 +15,8 @@ const config: Phaser.Types.Core.GameConfig = {
   pixelArt: false,
   roundPixels: false,
   scale: {
-    mode: Phaser.Scale.FIT,
+    // Make the canvas match the actual viewport, then we control layout via camera + scene layout.
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: 960,
     height: 540,

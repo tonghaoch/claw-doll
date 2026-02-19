@@ -29,6 +29,15 @@ export class GameScene extends Phaser.Scene {
   private keyP!: Phaser.Input.Keyboard.Key;
   private keyR!: Phaser.Input.Keyboard.Key;
   private keyM!: Phaser.Input.Keyboard.Key;
+  private keyL!: Phaser.Input.Keyboard.Key;
+
+  // Responsive layout
+  private baseW = 960;
+  private baseH = 540;
+  private safeRect = new Phaser.Geom.Rectangle(0, 0, 960, 540);
+  private playfieldRect = new Phaser.Geom.Rectangle(160, 140, 640, 320);
+  private debugLayout = false;
+  private debugGfx?: Phaser.GameObjects.Graphics;
 
   private box!: Phaser.GameObjects.Rectangle;
   private dolls!: Phaser.Physics.Arcade.Group;
@@ -99,6 +108,14 @@ export class GameScene extends Phaser.Scene {
     this.keyP = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyR = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.keyM = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.keyL = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.L);
+
+    this.configureCameraAndLayout();
+    this.scale.on('resize', () => {
+      // Simplest/most robust approach for now: rebuild the scene on orientation changes.
+      // Save state is persisted separately (local storage).
+      this.scene.restart();
+    });
 
     this.sfxEnabled = localStorage.getItem('claw-doll-sfx') !== 'off';
 
@@ -164,6 +181,11 @@ export class GameScene extends Phaser.Scene {
     }
     const dt = dtMs / 1000;
 
+    if (Phaser.Input.Keyboard.JustDown(this.keyL)) {
+      this.debugLayout = !this.debugLayout;
+      this.drawDebugLayout();
+    }
+
     // Start gate
     if (!this.started) {
       if (Phaser.Input.Keyboard.JustDown(this.keyM)) this.toggleMute();
@@ -203,9 +225,57 @@ export class GameScene extends Phaser.Scene {
     this.updateClaw(dt);
   }
 
+  private configureCameraAndLayout() {
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const isPortrait = h > w;
+
+    // Use two different design spaces for landscape vs portrait.
+    this.baseW = isPortrait ? 540 : 960;
+    this.baseH = isPortrait ? 960 : 540;
+
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, this.baseW, this.baseH);
+
+    // ENVELOP-like: always fill the screen. Cropping is allowed only for non-interactive decoration.
+    const zoom = Math.max(w / this.baseW, h / this.baseH);
+    cam.setZoom(zoom);
+    cam.centerOn(this.baseW / 2, this.baseH / 2);
+
+    // Safe area (6% padding in screen pixels, converted to world units)
+    const padPx = 0.06 * Math.min(w, h);
+    const padWorld = padPx / zoom;
+    const vw = cam.worldView;
+    this.safeRect.setTo(
+      vw.x + padWorld,
+      vw.y + padWorld,
+      Math.max(0, vw.width - padWorld * 2),
+      Math.max(0, vw.height - padWorld * 2),
+    );
+  }
+
+  private drawDebugLayout() {
+    if (!this.debugLayout) {
+      this.debugGfx?.clear();
+      return;
+    }
+    if (!this.debugGfx) this.debugGfx = this.add.graphics().setDepth(9999);
+
+    const g = this.debugGfx;
+    g.clear();
+
+    // Safe rect
+    g.lineStyle(2, 0x22c55e, 0.9);
+    g.strokeRectShape(this.safeRect);
+
+    // Playfield rect
+    g.lineStyle(2, 0x60a5fa, 0.9);
+    g.strokeRectShape(this.playfieldRect);
+  }
+
   private drawScene() {
-    const w = 960;
-    const h = 540;
+    const w = this.baseW;
+    const h = this.baseH;
 
     // Multi-stop gradient background (warm sunset)
     const bg = this.add.graphics().setDepth(0);
@@ -224,15 +294,19 @@ export class GameScene extends Phaser.Scene {
     // Soft colour blobs (ambient atmosphere with slow parallax)
     this.bgBlobs = [];
     const blobDefs = [
-      { x: 160, y: 120, scale: 2.2, tint: 0xffa07a, alpha: 0.12 },
-      { x: 780, y: 100, scale: 1.8, tint: 0xffcc80, alpha: 0.10 },
-      { x: 480, y: 420, scale: 2.5, tint: 0x2ec4b6, alpha: 0.08 },
-      { x: 120, y: 440, scale: 1.6, tint: 0xf48fb1, alpha: 0.08 },
-      { x: 820, y: 380, scale: 2.0, tint: 0xff8a65, alpha: 0.07 },
+      { x: 0.17, y: 0.22, scale: 2.2, tint: 0xffa07a, alpha: 0.12 },
+      { x: 0.82, y: 0.18, scale: 1.8, tint: 0xffcc80, alpha: 0.10 },
+      { x: 0.52, y: 0.78, scale: 2.5, tint: 0x2ec4b6, alpha: 0.08 },
+      { x: 0.14, y: 0.81, scale: 1.6, tint: 0xf48fb1, alpha: 0.08 },
+      { x: 0.86, y: 0.70, scale: 2.0, tint: 0xff8a65, alpha: 0.07 },
     ];
     for (const bd of blobDefs) {
-      const blob = this.add.image(bd.x, bd.y, 'bg-blob')
-        .setScale(bd.scale).setAlpha(bd.alpha).setTint(bd.tint).setDepth(0)
+      const blob = this.add
+        .image(bd.x * w, bd.y * h, 'bg-blob')
+        .setScale(bd.scale)
+        .setAlpha(bd.alpha)
+        .setTint(bd.tint)
+        .setDepth(0)
         .setBlendMode(Phaser.BlendModes.ADD);
       this.bgBlobs.push(blob);
     }
@@ -244,11 +318,19 @@ export class GameScene extends Phaser.Scene {
     // Animated dust particles
     this.time.addEvent({ delay: 900, loop: true, callback: () => this.spawnDust() });
 
+    const isPortrait = h > w;
+
     // box — modern glass arcade container
-    const boxX = 160;
-    const boxY = 140;
-    const boxW = 640;
-    const boxH = 320;
+    // Keep the whole playfield inside the safe rect to avoid ENVELOP cropping.
+    const boxMarginX = isPortrait ? 26 : 60;
+    const boxMarginTop = isPortrait ? 170 : 140;
+    const boxMarginBottom = isPortrait ? 170 : 80;
+
+    const boxW = Math.min(isPortrait ? 460 : 640, this.safeRect.width - boxMarginX * 2);
+    const boxH = Math.min(isPortrait ? 560 : 320, this.safeRect.height - boxMarginTop - boxMarginBottom);
+
+    const boxX = Math.round(this.safeRect.centerX - boxW / 2);
+    const boxY = Math.round(this.safeRect.y + boxMarginTop);
 
     // Outer frame with subtle depth
     const g = this.add.graphics().setDepth(2);
@@ -293,9 +375,13 @@ export class GameScene extends Phaser.Scene {
 
     this.box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x000000, 0).setOrigin(0);
 
+    this.playfieldRect.setTo(boxX, boxY, boxW, boxH);
+    this.drawDebugLayout();
+
     // claw
     this.clawX = boxX + boxW / 2;
-    this.clawTopY = 70;
+    this.clawTopY = isPortrait ? boxY - 90 : 70;
+    this.clawMaxY = boxY + boxH - 40;
     this.clawY = this.clawTopY;
 
     this.clawString = this.add.rectangle(this.clawX, this.clawTopY, 2, 1, 0x5a6670).setOrigin(0.5, 0).setDepth(7);
@@ -925,8 +1011,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnDust() {
-    const x = Phaser.Math.Between(40, 920);
-    const y = Phaser.Math.Between(40, 500);
+    const x = Phaser.Math.Between(40, Math.max(40, this.baseW - 40));
+    const y = Phaser.Math.Between(40, Math.max(40, this.baseH - 40));
 
     // Tint: 70% warm white/ivory, 20% orange/amber, 10% red/pink
     const roll = Math.random();
