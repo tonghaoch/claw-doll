@@ -38,6 +38,7 @@ export class GameScene extends Phaser.Scene {
 
   private state: ClawState = 'idle';
   private grabbed?: DollSprite;
+  private grabPauseUntil = 0;
 
   private started = false;
   private startOverlay!: Phaser.GameObjects.Container;
@@ -444,8 +445,12 @@ export class GameScene extends Phaser.Scene {
       }
     } else if (this.state === 'grabbing') {
       // short pause for feedback
-      this.clawArms.setTexture('claw-arms-closed');
-      this.state = 'rising';
+      if (this.time.now < this.grabPauseUntil) {
+        // Hold for a tiny beat so the clack/feedback reads as "weight".
+      } else {
+        this.clawArms.setTexture('claw-arms-closed');
+        this.state = 'rising';
+      }
     } else if (this.state === 'rising') {
       this.clawY -= riseSpeed * dt;
       if (this.grabbed) {
@@ -486,6 +491,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // A tiny pause makes the grab feel "mechanical" (arcade clack).
+    this.grabPauseUntil = this.time.now + 90;
+    this.playClackSfx(best.def);
+
     // Success check with pity/luck bonus
     const chance = Phaser.Math.Clamp(best.def.catchRate + this.luckBonus, 0, 0.95);
     const roll = Math.random();
@@ -505,11 +514,13 @@ export class GameScene extends Phaser.Scene {
       body.enable = false;
       best.setDepth(8);
       this.grabbed = best;
-      this.onWin(best.def);
+
+      // Let the clack land before the jingle.
+      this.time.delayedCall(70, () => this.onWin(best.def));
     } else {
       // Slip feedback: clamp it briefly then let it fall back.
       // slip sequence (brief attach then release)
-      this.playFailSfx();
+      this.time.delayedCall(60, () => this.playFailSfx());
       best.setVelocity(0, 0);
       const body = best.body as Phaser.Physics.Arcade.Body;
       body.enable = false;
@@ -621,6 +632,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.showToast(`Got! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
+
+    // Tiny haptics on mobile for "reward" moments.
+    if (def.rarity === 'SSR') this.vibrate([8, 20, 8]);
+    else if (def.rarity === 'SR') this.vibrate(10);
+
     this.playWinSfx(def);
     this.animatePickupToHotbar(def);
     this.updateHotbar();
@@ -1033,6 +1049,17 @@ export class GameScene extends Phaser.Scene {
     return this.audio;
   }
 
+  private vibrate(pattern: number | number[]) {
+    // Best-effort haptics (mostly Android). Safe no-op elsewhere.
+    try {
+      if (!this.sfxEnabled) return;
+      const vib = (navigator as any).vibrate as undefined | ((p: any) => boolean);
+      vib?.(pattern);
+    } catch {
+      // ignore
+    }
+  }
+
   private beep(freq: number, ms: number, type: OscillatorType = 'square', gain = 0.05) {
     if (!this.sfxEnabled) return;
     const ctx = this.ensureAudio();
@@ -1064,11 +1091,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playDropSfx() {
-    this.beep(180, 70, 'square', 0.03);
+    // A slightly longer "whoosh-click".
+    this.beep(220, 30, 'square', 0.02);
+    this.time.delayedCall(25, () => this.beep(160, 70, 'square', 0.03));
+  }
+
+  private playClackSfx(def?: DollDef) {
+    // The core "mechanical" confirmation sound.
+    // Rare dolls sound a bit brighter.
+    const isRare = def?.rarity === 'SR' || def?.rarity === 'SSR';
+    const base = isRare ? 420 : 360;
+    this.beep(base, 28, 'square', 0.045);
+    this.time.delayedCall(18, () => this.beep(base * 0.66, 42, 'square', 0.03));
   }
 
   private playFailSfx() {
-    this.beep(140, 90, 'sawtooth', 0.03);
+    // Soft downward "thunk".
+    this.beep(180, 40, 'sawtooth', 0.02);
+    this.time.delayedCall(30, () => this.beep(130, 90, 'sawtooth', 0.03));
   }
 
   private playWinSfx(def: DollDef) {
