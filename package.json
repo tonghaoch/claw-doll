@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "puppeteer-core": "^24.37.4",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"
   },

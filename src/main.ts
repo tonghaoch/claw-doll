@@ -1,5 +1,4 @@
 import './style.css';
-import '@fontsource/press-start-2p';
 import '@fontsource/noto-sans-sc';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
@@ -10,8 +9,8 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'app',
   backgroundColor: '#0b1020',
-  pixelArt: true,
-  roundPixels: true,
+  pixelArt: false,
+  roundPixels: false,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
