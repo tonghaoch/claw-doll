@@ -325,7 +325,7 @@ export class GameScene extends Phaser.Scene {
       // Bias spawn towards bottom half
       const py = Phaser.Math.Between(y + height * 0.35, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, def.id)
+        .image(px, py, def.assetKey)
         .setScale(0.6)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
@@ -545,7 +545,7 @@ export class GameScene extends Phaser.Scene {
       const px = Phaser.Math.Between(x + 40, x + width - 40);
       const py = Phaser.Math.Between(y + height * 0.35, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, def.id)
+        .image(px, py, def.assetKey)
         .setScale(0.6)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
@@ -1248,7 +1248,7 @@ export class GameScene extends Phaser.Scene {
         icon.setVisible(false);
         continue;
       }
-      icon.setTexture(def.id);
+      icon.setTexture(def.assetKey);
       icon.setScale(0.45);
       icon.setVisible(true);
     }
@@ -1259,7 +1259,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.hotbarIcons?.[0]) return;
     const target = this.hotbarIcons[0];
 
-    const icon = this.add.image(this.clawX, this.clawY + 44, def.id).setScale(0.6).setDepth(200);
+    const icon = this.add.image(this.clawX, this.clawY + 44, def.assetKey).setScale(0.6).setDepth(200);
     icon.clearTint();
 
     this.tweens.add({
