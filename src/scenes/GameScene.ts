@@ -2,26 +2,14 @@ import Phaser from 'phaser';
 import { DOLLS, rarityColor, rarityLabel } from '../data';
 import type { DollDef } from '../data';
 import { loadSave, saveNow, clearSave, newSave } from '../save';
+import { T, UI_FONT } from './game/theme';
+import { getDebugFlags } from './game/debug';
+import { findGrabCandidate } from './game/grab';
 
 type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
 type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
-const UI_FONT = 'Inter, "Noto Sans SC", system-ui, sans-serif';
-
-/* ── Design Tokens (Alto vibe – warm sunset) ──────────────── */
-const T = {
-  bgDeep: 0x2a1a2e, bgMid: 0x3b2240,
-  cardBg: 0x3a2a3e, cardAlpha: 0.82,
-  border: 0x9b7a6e, borderAlpha: 0.30,
-  glass: 0xc9a89a,
-  shadow: 0x1a0e14, shadowAlpha: 0.28,
-  accent: 0xffb347,
-  r: 16, rSm: 10, rPill: 28,
-  fast: 180, med: 220, slow: 260,
-  ease: 'Cubic.easeOut' as const,
-  easeIn: 'Cubic.easeIn' as const,
-};
 
 export class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -107,7 +95,7 @@ export class GameScene extends Phaser.Scene {
 
     this.sfxEnabled = localStorage.getItem('claw-doll-sfx') !== 'off';
 
-    this.debugGrab = new URLSearchParams(window.location.search).get('debugGrab') === '1';
+    this.debugGrab = getDebugFlags(window.location.search).debugGrab;
 
     this.drawScene();
     this.spawnDolls();
@@ -480,41 +468,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private findGrabCandidate(): DollSprite | undefined {
-    // Find nearest doll under claw arms area.
-    // Tuned so "visually touching" is more likely to register, especially on mobile.
-    // The claw arms sprite is around (clawY + 28). The actual "pinch" feels closer to ~ (clawY + 46).
-    const grabW = 66;
-    const grabH = 44;
-    const grabX = this.clawX - grabW / 2;
-    const grabY = this.clawY + 30;
-    const clawRect = new Phaser.Geom.Rectangle(grabX, grabY, grabW, grabH);
-
-    if (this.debugGrab) {
-      // Lazy-init the debug graphics (reuses the same object)
-      const g = (this.grabDebugGfx ??= this.add.graphics().setDepth(9999));
-      g.lineStyle(2, 0xf59e0b, 0.9);
-      g.strokeRectShape(clawRect);
-    }
-
-    let best: DollSprite | undefined;
-    let bestDist = Number.POSITIVE_INFINITY;
-
-    this.dolls.children.iterate((obj) => {
-      const spr = obj as DollSprite;
-      if (!spr?.active) return true;
-
-      const r = spr.getBounds();
-      if (!Phaser.Geom.Intersects.RectangleToRectangle(clawRect, r)) return true;
-
-      const d = Phaser.Math.Distance.Between(this.clawX, this.clawY, spr.x, spr.y);
-      if (d < bestDist) {
-        bestDist = d;
-        best = spr;
-      }
-      return true;
+    return findGrabCandidate({
+      clawX: this.clawX,
+      clawY: this.clawY,
+      dolls: this.dolls,
+      debugGrab: this.debugGrab,
+      grabDebugGfx: this.grabDebugGfx,
+      add: this.add,
     });
-
-    return best;
   }
 
   private tryGrab(forced?: DollSprite) {
