@@ -9,6 +9,20 @@ type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
 const UI_FONT = '"Noto Sans SC", system-ui, sans-serif';
 
+/* ── Design Tokens (Alto vibe) ─────────────────────────────── */
+const T = {
+  bgDeep: 0x0a0e1a, bgMid: 0x0f172a,
+  cardBg: 0x111827, cardAlpha: 0.84,
+  border: 0x475569, borderAlpha: 0.28,
+  glass: 0x64748b,
+  shadow: 0x000000, shadowAlpha: 0.32,
+  accent: 0xfacc15,
+  r: 16, rSm: 10, rPill: 28,
+  fast: 180, med: 220, slow: 260,
+  ease: 'Cubic.easeOut' as const,
+  easeIn: 'Cubic.easeIn' as const,
+};
+
 export class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keySpace!: Phaser.Input.Keyboard.Key;
@@ -66,8 +80,8 @@ export class GameScene extends Phaser.Scene {
 
   private hudText!: Phaser.GameObjects.Text;
   private toastText!: Phaser.GameObjects.Text;
-  private bgTile!: Phaser.GameObjects.TileSprite;
-  private bgTile2!: Phaser.GameObjects.TileSprite;
+  private bgTile?: Phaser.GameObjects.TileSprite;
+  private bgTile2?: Phaser.GameObjects.TileSprite;
   private sfxLabel!: Phaser.GameObjects.Text;
   private dollShadows = new Map<DollSprite, Phaser.GameObjects.Ellipse>();
 
@@ -91,13 +105,14 @@ export class GameScene extends Phaser.Scene {
     this.drawScene();
     this.spawnDolls();
 
-    // Modern HUD card (semi-transparent rounded with shadow)
+    // HUD glass card
     const hudCard = this.add.graphics().setDepth(9);
-    hudCard.fillStyle(0x0f172a, 0.72);
-    hudCard.fillRoundedRect(12, 10, 440, 46, 14);
-    // Subtle top highlight
-    hudCard.lineStyle(1, 0x475569, 0.35);
-    hudCard.strokeRoundedRect(12, 10, 440, 46, 14);
+    hudCard.fillStyle(T.shadow, T.shadowAlpha);
+    hudCard.fillRoundedRect(14, 13, 440, 46, T.r);
+    hudCard.fillStyle(T.cardBg, T.cardAlpha);
+    hudCard.fillRoundedRect(12, 10, 440, 46, T.r);
+    hudCard.lineStyle(1, T.border, T.borderAlpha);
+    hudCard.strokeRoundedRect(12, 10, 440, 46, T.r);
 
     // Luck bar (modern rounded)
     const luckBg = this.add.graphics().setDepth(10);
@@ -192,19 +207,23 @@ export class GameScene extends Phaser.Scene {
     const w = 960;
     const h = 540;
 
-    // Tiled dungeon background (subtle, tinted dark)
-    this.bgTile = this.add.tileSprite(0, 0, w, h, 'dungeon-tiles').setOrigin(0).setTint(0x1a1a2e).setAlpha(0.55);
+    // Multi-stop gradient background
+    const bg = this.add.graphics().setDepth(0);
+    bg.fillGradientStyle(T.bgDeep, 0x0b1024, T.bgMid, 0x111a32, 1, 1, 1, 1);
+    bg.fillRect(0, 0, w, Math.ceil(h * 0.45));
+    bg.fillGradientStyle(T.bgMid, 0x111a32, 0x1a1535, 0x1e1b4b, 1, 1, 1, 1);
+    bg.fillRect(0, Math.floor(h * 0.45), w, Math.ceil(h * 0.3));
+    bg.fillGradientStyle(0x1a1535, 0x1e1b4b, 0x12101e, 0x0c0a14, 1, 1, 1, 1);
+    bg.fillRect(0, Math.floor(h * 0.75), w, Math.ceil(h * 0.25) + 1);
 
-    // Second parallax layer (slower, different tint)
-    this.bgTile2 = this.add.tileSprite(0, 0, w, h, 'dungeon-tiles').setOrigin(0).setTint(0x2e1a3a).setAlpha(0.25).setDepth(0);
-
-    // Colorful gradient overlay
+    // Subtle colour wash
     const grad = this.add.graphics().setDepth(0);
-    grad.fillGradientStyle(0x3b82f6, 0x8b5cf6, 0x06b6d4, 0xec4899, 0.08, 0.08, 0.08, 0.08);
+    grad.fillGradientStyle(0x3b82f6, 0x8b5cf6, 0x06b6d4, 0xec4899, 0.06, 0.06, 0.06, 0.06);
     grad.fillRect(0, 0, w, h);
 
-    // Vignette overlay
+    // Vignette + grain overlays
     this.add.image(w / 2, h / 2, 'vignette').setDepth(1);
+    this.add.image(w / 2, h / 2, 'grain').setDepth(1).setAlpha(0.35);
 
     // Animated dust particles
     this.time.addEvent({ delay: 350, loop: true, callback: () => this.spawnDust() });
@@ -216,21 +235,16 @@ export class GameScene extends Phaser.Scene {
     const boxH = 320;
 
     const g = this.add.graphics().setDepth(2);
-    // Outer frame
     g.fillStyle(0x1e293b, 1);
-    g.fillRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, 10);
-    // Inner fill
-    g.fillStyle(0x0f172a, 0.92);
-    g.fillRoundedRect(boxX, boxY, boxW, boxH, 8);
-    // Strong outer border
-    g.lineStyle(3, 0x475569, 1);
-    g.strokeRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, 10);
-    // Inner border
-    g.lineStyle(2, 0x334155, 1);
-    g.strokeRoundedRect(boxX, boxY, boxW, boxH, 8);
-    // Glass highlight edge
-    g.lineStyle(1, 0x64748b, 0.5);
-    g.strokeRoundedRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, 6);
+    g.fillRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, T.rSm);
+    g.fillStyle(T.bgMid, 0.92);
+    g.fillRoundedRect(boxX, boxY, boxW, boxH, T.rSm);
+    g.lineStyle(2, T.border, 0.6);
+    g.strokeRoundedRect(boxX - 8, boxY - 8, boxW + 16, boxH + 16, T.rSm);
+    g.lineStyle(1, T.border, T.borderAlpha);
+    g.strokeRoundedRect(boxX, boxY, boxW, boxH, T.rSm);
+    g.lineStyle(1, T.glass, 0.18);
+    g.strokeRoundedRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, 8);
 
     // Inner shadow/highlight for glass effect
     const sh = this.add.graphics().setDepth(6);
@@ -283,8 +297,8 @@ export class GameScene extends Phaser.Scene {
       // Bias spawn towards bottom half
       const py = Phaser.Math.Between(y + height * 0.35, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, 'animals', def.frameName)
-        .setScale(0.3)
+        .image(px, py, def.id)
+        .setScale(0.6)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
 
@@ -502,8 +516,8 @@ export class GameScene extends Phaser.Scene {
       const px = Phaser.Math.Between(x + 40, x + width - 40);
       const py = Phaser.Math.Between(y + height * 0.35, y + height - 40);
       const spr = this.physics.add
-        .image(px, py, 'animals', def.frameName)
-        .setScale(0.3)
+        .image(px, py, def.id)
+        .setScale(0.6)
         .setBounce(1, 1)
         .setCollideWorldBounds(false) as DollSprite;
       spr.def = def;
@@ -800,7 +814,7 @@ export class GameScene extends Phaser.Scene {
 
     this.aimed = best;
     this.aimed.setTint(0xffffff);
-    this.aimed.setScale(0.34);
+    this.aimed.setScale(0.66);
 
     this.aimedPulse = this.tweens.add({
       targets: this.aimed,
@@ -820,7 +834,7 @@ export class GameScene extends Phaser.Scene {
     if (this.aimed && this.aimed.active) {
       this.aimed.clearTint();
       this.aimed.setAlpha(1);
-      this.aimed.setScale(0.3);
+      this.aimed.setScale(0.6);
     }
     this.aimed = undefined;
   }
@@ -1185,8 +1199,8 @@ export class GameScene extends Phaser.Scene {
         icon.setVisible(false);
         continue;
       }
-      icon.setTexture('animals', def.frameName);
-      icon.setScale(0.22);
+      icon.setTexture(def.id);
+      icon.setScale(0.45);
       icon.setVisible(true);
     }
   }
@@ -1196,23 +1210,23 @@ export class GameScene extends Phaser.Scene {
     if (!this.hotbarIcons?.[0]) return;
     const target = this.hotbarIcons[0];
 
-    const icon = this.add.image(this.clawX, this.clawY + 44, 'animals', def.frameName).setScale(0.3).setDepth(200);
+    const icon = this.add.image(this.clawX, this.clawY + 44, def.id).setScale(0.6).setDepth(200);
     icon.clearTint();
 
     this.tweens.add({
       targets: icon,
       x: target.x,
       y: target.y,
-      scale: 0.22,
+      scale: 0.45,
       duration: 420,
       ease: 'Cubic.easeOut',
       onComplete: () => {
         icon.destroy();
         // pulse target
-        target.setScale(0.26);
+        target.setScale(0.50);
         this.tweens.add({
           targets: target,
-          scale: 0.22,
+          scale: 0.45,
           duration: 180,
           ease: 'Back.easeOut',
         });
