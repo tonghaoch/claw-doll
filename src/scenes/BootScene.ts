@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DOLLS } from '../data';
+import type { DollSymbol } from '../data';
 
 /** Draw a rounded rectangle path (compatible helper). */
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -14,6 +15,76 @@ function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.lineTo(x, y + r);
   ctx.arcTo(x, y, x + r, y, r);
   ctx.closePath();
+}
+
+/** Draw a small geometric symbol at (x, y) with given radius. */
+function drawSymbol(ctx: CanvasRenderingContext2D, type: DollSymbol, x: number, y: number, s: number) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  switch (type) {
+    case 'circle':
+      ctx.beginPath();
+      ctx.arc(x, y, s, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'triangle':
+      ctx.beginPath();
+      ctx.moveTo(x, y - s);
+      ctx.lineTo(x + s, y + s * 0.7);
+      ctx.lineTo(x - s, y + s * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'star': {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+        ctx.lineTo(x + Math.cos(a) * s, y + Math.sin(a) * s);
+        const b = a + Math.PI / 5;
+        ctx.lineTo(x + Math.cos(b) * s * 0.45, y + Math.sin(b) * s * 0.45);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'diamond':
+      ctx.beginPath();
+      ctx.moveTo(x, y - s);
+      ctx.lineTo(x + s * 0.7, y);
+      ctx.lineTo(x, y + s);
+      ctx.lineTo(x - s * 0.7, y);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'heart': {
+      ctx.beginPath();
+      ctx.moveTo(x, y + s * 0.7);
+      ctx.bezierCurveTo(x - s * 1.3, y - s * 0.2, x - s * 0.4, y - s * 1.1, x, y - s * 0.3);
+      ctx.bezierCurveTo(x + s * 0.4, y - s * 1.1, x + s * 1.3, y - s * 0.2, x, y + s * 0.7);
+      ctx.fill();
+      break;
+    }
+    case 'hexagon':
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3 - Math.PI / 6;
+        ctx.lineTo(x + Math.cos(a) * s, y + Math.sin(a) * s);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'crescent':
+      ctx.beginPath();
+      ctx.arc(x, y, s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(x + s * 0.45, y - s * 0.25, s * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      break;
+  }
+  ctx.restore();
 }
 
 export class BootScene extends Phaser.Scene {
@@ -32,8 +103,9 @@ export class BootScene extends Phaser.Scene {
 
   private createTextures() {
     const SIZE = 64;
+    const cx = SIZE / 2;
 
-    // Modern flat sticker for each doll
+    // Modern sticker for each doll: round bg + face + symbol badge
     for (const doll of DOLLS) {
       const canvas = this.textures.createCanvas(doll.id, SIZE, SIZE)!;
       const ctx = canvas.getContext();
@@ -41,35 +113,80 @@ export class BootScene extends Phaser.Scene {
       const red = (doll.color >> 16) & 0xff;
       const grn = (doll.color >> 8) & 0xff;
       const blu = doll.color & 0xff;
+      const r = SIZE / 2 - 2;
 
-      // Rounded rect background with gradient
-      rrect(ctx, 2, 2, SIZE - 4, SIZE - 4, 16);
-      const grad = ctx.createLinearGradient(0, 0, 0, SIZE);
-      grad.addColorStop(0, `rgb(${Math.min(255, red + 40)},${Math.min(255, grn + 40)},${Math.min(255, blu + 40)})`);
-      grad.addColorStop(1, `rgb(${Math.max(0, red - 30)},${Math.max(0, grn - 30)},${Math.max(0, blu - 30)})`);
+      // Circular background with radial gradient
+      ctx.beginPath();
+      ctx.arc(cx, cx, r, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(cx - 6, cx - 8, 2, cx, cx, r);
+      grad.addColorStop(0, `rgb(${Math.min(255, red + 50)},${Math.min(255, grn + 50)},${Math.min(255, blu + 50)})`);
+      grad.addColorStop(1, `rgb(${Math.max(0, red - 25)},${Math.max(0, grn - 25)},${Math.max(0, blu - 25)})`);
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Glass highlight on upper half
-      rrect(ctx, 6, 4, SIZE - 12, SIZE / 2 - 8, 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      // Glass highlight ellipse
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cx, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.beginPath();
+      ctx.ellipse(cx, cx - 10, 18, 10, -0.15, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fill();
+      ctx.restore();
 
       // Border
-      rrect(ctx, 2, 2, SIZE - 4, SIZE - 4, 16);
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath();
+      ctx.arc(cx, cx, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Emoji
-      ctx.font = '32px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0,0,0,0.3)';
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetY = 2;
-      ctx.fillText(doll.emoji, SIZE / 2, SIZE / 2 + 2);
-      ctx.shadowColor = 'transparent';
+      // Eyes
+      const eyeY = cx + 3;
+      const eyeGap = 8;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx - eyeGap, eyeY, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + eyeGap, eyeY, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Pupils
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      ctx.arc(cx - eyeGap + 1, eyeY + 1, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + eyeGap + 1, eyeY + 1, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Eye shine
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(cx - eyeGap - 0.5, eyeY - 1.5, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + eyeGap - 0.5, eyeY - 1.5, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mouth
+      ctx.beginPath();
+      ctx.arc(cx, eyeY + 10, 5, 0.15, Math.PI - 0.15);
+      ctx.strokeStyle = '#1a1a2e';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Blush cheeks
+      ctx.fillStyle = 'rgba(255,130,130,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(cx - 15, eyeY + 5, 4, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 15, eyeY + 5, 4, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Symbol badge on forehead
+      drawSymbol(ctx, doll.symbol, cx, cx - 12, 6);
 
       canvas.refresh();
     }
@@ -169,20 +286,6 @@ export class BootScene extends Phaser.Scene {
         imgData.data[i + 3] = 10;
       }
       ctx.putImageData(imgData, 0, 0);
-      canvas.refresh();
-    }
-
-    // Soft radial blob for background atmosphere
-    {
-      const sz = 256;
-      const canvas = this.textures.createCanvas('bg-blob', sz, sz)!;
-      const ctx = canvas.getContext();
-      const g = ctx.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
-      g.addColorStop(0, 'rgba(255,255,255,0.35)');
-      g.addColorStop(0.4, 'rgba(255,255,255,0.12)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, sz, sz);
       canvas.refresh();
     }
   }
