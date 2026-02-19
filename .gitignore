@@ -28,3 +28,6 @@ public/assets/kenney/*.zip
 
 # Generated preview image
 public/assets/kenney/roguelike-characters/frames_0_119.png
+
+# Ignore local tooling scripts
+/tools/
