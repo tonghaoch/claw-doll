@@ -109,6 +109,7 @@ export class GameScene extends Phaser.Scene {
 
     // Unlock audio on first user gesture (iOS/Safari needs this).
     this.input.once('pointerdown', () => this.sfx.unlock());
+    this.input.once('pointerup', () => this.sfx.unlock());
 
     this.debugGrab = getDebugFlags(window.location.search).debugGrab;
 
@@ -883,7 +884,7 @@ export class GameScene extends Phaser.Scene {
     btnGfx.fillStyle(0xffb347, 1);
     btnGfx.fillRoundedRect(400, 300, 160, 44, 22);
     const hint = this.add
-      .text(480, 322, 'Press Space', {
+      .text(480, 322, 'Tap / Space / Enter', {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
         fontSize: '16px',
@@ -911,15 +912,30 @@ export class GameScene extends Phaser.Scene {
     });
     this.sfx.roundOver();
 
-    // One-shot key handler
-    const onKey = () => {
+    const retry = () => {
       if (!this.roundOverlay) return;
       this.roundOverlay.destroy(true);
       this.roundOverlay = undefined;
       this.sfx.retry();
       this.startRound();
     };
-    this.input.keyboard!.once('keydown-SPACE', onKey);
+
+    // Tap-to-retry
+    const hit = this.add
+      .rectangle(400, 300, 160, 44, 0x000000, 0)
+      .setOrigin(0)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', () => retry());
+
+    // Also allow tapping anywhere on the dark panel to continue.
+    panel.setInteractive(new Phaser.Geom.Rectangle(0, 0, 960, 540), Phaser.Geom.Rectangle.Contains);
+    panel.on('pointerup', () => retry());
+
+    // One-shot key handler
+    this.input.keyboard!.once('keydown-SPACE', retry);
+    this.input.keyboard!.once('keydown-ENTER', retry);
+
+    this.roundOverlay.add(hit);
   }
 
   private updateAimedTarget() {

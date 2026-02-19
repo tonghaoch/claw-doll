@@ -10,11 +10,18 @@ export class Sfx {
   private isEnabled: () => boolean;
   private getNowMs: () => number;
 
+  private gainMul = 1;
+
   // master volume (keep conservative; mobile speakers are harsh)
   constructor(scene: Phaser.Scene, isEnabled: () => boolean, getNowMs: () => number) {
     this.scene = scene;
     this.isEnabled = isEnabled;
     this.getNowMs = getNowMs;
+
+    // iOS (incl. Chrome iOS) uses WebKit and tends to be quieter; bump a bit.
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/i.test(ua);
+    this.gainMul = isIOS ? 1.7 : 1;
   }
 
   private ensureCtx() {
@@ -53,7 +60,7 @@ export class Sfx {
     osc.frequency.setValueAtTime(freq, t0);
 
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(gain * this.gainMul, t0 + 0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
 
     osc.connect(g);
@@ -90,7 +97,7 @@ export class Sfx {
 
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(gain, ctx.currentTime + 0.003);
+    g.gain.exponentialRampToValueAtTime(gain * this.gainMul, ctx.currentTime + 0.003);
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + ms / 1000);
 
     src.connect(hp);
