@@ -5,6 +5,7 @@ import { loadSave, saveNow, clearSave, newSave } from '../save';
 import { T, UI_FONT } from './game/theme';
 import { getDebugFlags } from './game/debug';
 import { findGrabCandidate } from './game/grab';
+import { Sfx } from './game/sfx';
 
 type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
@@ -45,8 +46,7 @@ export class GameScene extends Phaser.Scene {
 
   // SFX
   private sfxEnabled = true;
-  private audio?: AudioContext;
-  private lastMoveSfxAt = 0;
+  private sfx!: Sfx;
 
   // Hotbar
   private hotbarIcons: Phaser.GameObjects.Image[] = [];
@@ -96,6 +96,11 @@ export class GameScene extends Phaser.Scene {
 
     this.sfxEnabled = localStorage.getItem('claw-doll-sfx') !== 'off';
 
+    this.sfx = new Sfx(this, () => this.sfxEnabled, () => this.time.now);
+
+    // Unlock audio on first user gesture (iOS/Safari needs this).
+    this.input.once('pointerdown', () => this.sfx.unlock());
+
     this.debugGrab = getDebugFlags(window.location.search).debugGrab;
 
     this.drawScene();
@@ -143,7 +148,7 @@ export class GameScene extends Phaser.Scene {
     this.createHotbar();
     this.updateHotbar();
 
-    this.events.on('resume', () => this.playClosePokedexSfx());
+    this.events.on('resume', () => this.sfx.closePokedex());
 
     this.createStartOverlay();
   }
@@ -167,7 +172,7 @@ export class GameScene extends Phaser.Scene {
         this.started = true;
         this.startOverlay.setVisible(false);
         this.startRound();
-        this.playStartSfx();
+        this.sfx.start();
         this.showToast('←/→ Move · Space Drop · P Pokédex · R Reset · M Mute', 2000, '#e5e7eb');
       }
       return;
@@ -181,7 +186,7 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyM)) this.toggleMute();
 
     if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
-      this.playOpenPokedexSfx();
+      this.sfx.openPokedex();
       this.scene.launch('pokedex', { save: this.save });
       this.scene.pause();
       return;
@@ -394,7 +399,7 @@ export class GameScene extends Phaser.Scene {
       const moved = !!(this.cursors.left?.isDown || this.cursors.right?.isDown);
       if (this.cursors.left?.isDown) this.clawX -= speed * dt;
       if (this.cursors.right?.isDown) this.clawX += speed * dt;
-      if (moved) this.playMoveSfx();
+      if (moved) this.sfx.move();
 
       this.clawX = Phaser.Math.Clamp(this.clawX, boxLeft, boxRight);
 
@@ -410,7 +415,7 @@ export class GameScene extends Phaser.Scene {
         }
         this.attemptsLeft -= 1;
         this.updateHud();
-        this.playDropSfx();
+        this.sfx.drop();
 
         this.state = 'dropping';
         this.grabbed = undefined;
@@ -493,7 +498,7 @@ export class GameScene extends Phaser.Scene {
 
     // A tiny pause makes the grab feel "mechanical" (arcade clack).
     this.grabPauseUntil = this.time.now + 90;
-    this.playClackSfx(best.def);
+    this.sfx.clack(best.def);
 
     // Success check with pity/luck bonus
     const chance = Phaser.Math.Clamp(best.def.catchRate + this.luckBonus, 0, 0.95);
@@ -520,7 +525,7 @@ export class GameScene extends Phaser.Scene {
     } else {
       // Slip feedback: clamp it briefly then let it fall back.
       // slip sequence (brief attach then release)
-      this.time.delayedCall(60, () => this.playFailSfx());
+      this.time.delayedCall(60, () => this.sfx.fail());
       best.setVelocity(0, 0);
       const body = best.body as Phaser.Physics.Arcade.Body;
       body.enable = false;
@@ -628,16 +633,12 @@ export class GameScene extends Phaser.Scene {
 
     // SSR rising arpeggio beeps
     if (def.rarity === 'SSR') {
-      this.playSSRArpeggio();
+      this.sfx.ssrArp();
     }
 
     this.showToast(`Got! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
 
-    // Tiny haptics on mobile for "reward" moments.
-    if (def.rarity === 'SSR') this.vibrate([8, 20, 8]);
-    else if (def.rarity === 'SR') this.vibrate(10);
-
-    this.playWinSfx(def);
+    this.sfx.win(def);
     this.animatePickupToHotbar(def);
     this.updateHotbar();
     this.updateHud();
@@ -833,14 +834,14 @@ export class GameScene extends Phaser.Scene {
       duration: T.med,
       ease: T.ease,
     });
-    this.playRoundOverSfx();
+    this.sfx.roundOver();
 
     // One-shot key handler
     const onKey = () => {
       if (!this.roundOverlay) return;
       this.roundOverlay.destroy(true);
       this.roundOverlay = undefined;
-      this.playRetrySfx();
+      this.sfx.retry();
       this.startRound();
     };
     this.input.keyboard!.once('keydown-SPACE', onKey);
@@ -1043,136 +1044,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private ensureAudio() {
-    if (this.audio) return this.audio;
-    this.audio = new (window.AudioContext || (window as any).webkitAudioContext)();
-    return this.audio;
-  }
-
-  private vibrate(pattern: number | number[]) {
-    // Best-effort haptics (mostly Android). Safe no-op elsewhere.
-    try {
-      if (!this.sfxEnabled) return;
-      const vib = (navigator as any).vibrate as undefined | ((p: any) => boolean);
-      vib?.(pattern);
-    } catch {
-      // ignore
-    }
-  }
-
-  private beep(freq: number, ms: number, type: OscillatorType = 'square', gain = 0.05) {
-    if (!this.sfxEnabled) return;
-    const ctx = this.ensureAudio();
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-    const t0 = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t0);
-
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
-
-    osc.connect(g);
-    g.connect(ctx.destination);
-
-    osc.start(t0);
-    osc.stop(t0 + ms / 1000 + 0.02);
-  }
-
-  private playMoveSfx() {
-    const now = this.time.now;
-    if (now - this.lastMoveSfxAt < 90) return;
-    this.lastMoveSfxAt = now;
-    this.beep(220, 35, 'square', 0.02);
-  }
-
-  private playDropSfx() {
-    // A slightly longer "whoosh-click".
-    this.beep(220, 30, 'square', 0.02);
-    this.time.delayedCall(25, () => this.beep(160, 70, 'square', 0.03));
-  }
-
-  private playClackSfx(def?: DollDef) {
-    // The core "mechanical" confirmation sound.
-    // Rare dolls sound a bit brighter.
-    const isRare = def?.rarity === 'SR' || def?.rarity === 'SSR';
-    const base = isRare ? 420 : 360;
-    this.beep(base, 28, 'square', 0.045);
-    this.time.delayedCall(18, () => this.beep(base * 0.66, 42, 'square', 0.03));
-  }
-
-  private playFailSfx() {
-    // Soft downward "thunk".
-    this.beep(180, 40, 'sawtooth', 0.02);
-    this.time.delayedCall(30, () => this.beep(130, 90, 'sawtooth', 0.03));
-  }
-
-  private playWinSfx(def: DollDef) {
-    if (def.rarity === 'SSR') {
-      this.beep(880, 120, 'square', 0.06);
-      this.time.delayedCall(90, () => this.beep(1320, 140, 'square', 0.05));
-      return;
-    }
-    if (def.rarity === 'SR') {
-      this.beep(660, 90, 'square', 0.05);
-      this.time.delayedCall(70, () => this.beep(990, 110, 'square', 0.04));
-      return;
-    }
-    if (def.rarity === 'R') {
-      this.beep(520, 80, 'square', 0.04);
-      return;
-    }
-    this.beep(420, 70, 'square', 0.035);
-  }
-
-  private playSSRArpeggio() {
-    // Short rising arpeggio: C6-E6-G6-C7
-    const notes = [1047, 1319, 1568, 2093];
-    notes.forEach((freq, i) => {
-      this.time.delayedCall(i * 80, () => this.beep(freq, 100, 'square', 0.04));
-    });
-  }
-
-  private playStartSfx() {
-    this.beep(440, 80, 'square', 0.04);
-    this.time.delayedCall(80, () => this.beep(660, 80, 'square', 0.04));
-    this.time.delayedCall(160, () => this.beep(880, 120, 'square', 0.05));
-  }
-
-  private playOpenPokedexSfx() {
-    this.beep(600, 60, 'square', 0.03);
-    this.time.delayedCall(60, () => this.beep(900, 80, 'square', 0.03));
-  }
-
-  private playClosePokedexSfx() {
-    this.beep(900, 60, 'square', 0.03);
-    this.time.delayedCall(60, () => this.beep(600, 80, 'square', 0.03));
-  }
-
-  private playRoundOverSfx() {
-    this.beep(440, 120, 'sawtooth', 0.04);
-    this.time.delayedCall(140, () => this.beep(330, 160, 'sawtooth', 0.04));
-    this.time.delayedCall(320, () => this.beep(220, 200, 'sawtooth', 0.03));
-  }
-
-  private playRetrySfx() {
-    this.beep(330, 70, 'square', 0.04);
-    this.time.delayedCall(80, () => this.beep(440, 70, 'square', 0.04));
-    this.time.delayedCall(160, () => this.beep(660, 100, 'square', 0.05));
-  }
-
   /** Hook for UI button hover — call when hover buttons are added. */
   playBtnHoverSfx() {
-    this.beep(700, 25, 'square', 0.015);
+    this.sfx.btnHover();
   }
 
   /** Hook for UI button click — call when click buttons are added. */
   playBtnClickSfx() {
-    this.beep(500, 40, 'square', 0.03);
+    this.sfx.btnClick();
   }
 
   private toggleMute() {
