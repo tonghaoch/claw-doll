@@ -1,18 +1,18 @@
 import Phaser from 'phaser';
 import { DOLLS, rarityLabel } from '../data';
-import type { SaveV1 } from '../save';
+import type { SaveV2 } from '../save';
 
 const UI_FONT = 'Inter, "Noto Sans SC", system-ui, sans-serif';
 
 export class PokedexScene extends Phaser.Scene {
-  private save!: SaveV1;
+  private save!: SaveV2;
   private keyEsc!: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super('pokedex');
   }
 
-  init(data: { save: SaveV1 }) {
+  init(data: { save: SaveV2 }) {
     this.save = data.save;
   }
 
@@ -30,7 +30,7 @@ export class PokedexScene extends Phaser.Scene {
     panel.lineStyle(2, 0x334155, 1);
     panel.strokeRoundedRect(80, 60, 800, 420, 10);
 
-    const owned = Object.values(this.save.counts).filter((n) => n > 0).length;
+    const owned = Object.values(this.save.counts as Record<string, number>).filter((n) => n > 0).length;
 
     this.add
       .text(480, 84, `图鉴 ${owned}/${DOLLS.length}`, { fontFamily: UI_FONT, fontSize: '18px', color: '#e5e7eb' })

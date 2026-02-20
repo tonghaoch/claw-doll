@@ -14,6 +14,30 @@ type ClawState = 'idle' | 'dropping' | 'grabbing' | 'rising';
 
 type TouchDir = -1 | 0 | 1;
 
+type BuffId =
+  | 'SteadyHands'
+  | 'SlowDrop'
+  | 'SlipShield'
+  | 'LuckyStart'
+  | 'GreedyGrip'
+  | 'PityBooster';
+
+type BuffDef = {
+  id: BuffId;
+  name: string;
+  desc: string;
+};
+
+const BUFF_MILESTONES = [3, 6, 9] as const;
+
+const BUFF_POOL: BuffDef[] = [
+  { id: 'SteadyHands', name: 'Steady Hands', desc: 'Move speed +20% (this run).' },
+  { id: 'SlowDrop', name: 'Slow Drop', desc: 'Drop speed -15% (this run).' },
+  { id: 'SlipShield', name: 'Slip Shield', desc: 'First slip becomes a guaranteed success.' },
+  { id: 'LuckyStart', name: 'Lucky Start', desc: 'Start with +6% Luck, but Luck cap -5%.' },
+  { id: 'GreedyGrip', name: 'Greedy Grip', desc: 'Grab window +12%, but effective chance -3%.' },
+  { id: 'PityBooster', name: 'Pity Booster', desc: 'Fail gives extra +2% Luck (this run).' },
+];
 
 export class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -68,10 +92,22 @@ export class GameScene extends Phaser.Scene {
   private hotbarSlotGlow?: Phaser.GameObjects.Rectangle;
 
   // Round loop
-  private readonly attemptsPerRound = 10;
+  private baseAttemptsPerRound = 10;
+  private attemptsPerRound = this.baseAttemptsPerRound;
   private attemptsLeft = this.attemptsPerRound;
   private roundNew = new Set<string>();
   private roundOverlay?: Phaser.GameObjects.Container;
+
+  // Run (roguelite-lite)
+  private buffOverlay?: Phaser.GameObjects.Container;
+  private runDanger = 0;
+  private runBuffs: BuffId[] = [];
+  private buffChoicesTaken = 0;
+  private slipShieldUsed = false;
+  private runLuckCapDelta = 0; // modifies max luck
+  private runGrabScale = 1;
+  private runChancePenalty = 0; // subtract from effective chance
+  private runPityExtra = 0; // add to luck gain on fail
 
   // Aim target highlight
   private aimed?: DollSprite;
@@ -88,6 +124,7 @@ export class GameScene extends Phaser.Scene {
   private dollShadows = new Map<DollSprite, Phaser.GameObjects.Ellipse>();
 
   private save = loadSave();
+  private coinsAtRoundStart = 0;
 
   // Enable by opening the game with: ?debugGrab=1
   private debugGrab = false;
@@ -100,6 +137,7 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.save = loadSave();
+    this.coinsAtRoundStart = this.save.coins ?? 0;
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -193,7 +231,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.roundOverlay) {
+    if (this.roundOverlay || this.buffOverlay) {
       if (Phaser.Input.Keyboard.JustDown(this.keyM)) this.toggleMute();
       return;
     }
@@ -427,6 +465,7 @@ export class GameScene extends Phaser.Scene {
 
   private updateDolls(dt: number) {
     const { x, y, width, height } = this.box;
+    const dangerMul = Phaser.Math.Clamp(1 + this.runDanger * 0.04, 1, 1.7);
 
     this.dolls.children.iterate((obj) => {
       const spr = obj as DollSprite;
@@ -460,8 +499,8 @@ export class GameScene extends Phaser.Scene {
       body.velocity.x += Phaser.Math.FloatBetween(-5, 5) * dt;
       body.velocity.y += Phaser.Math.FloatBetween(-5, 5) * dt;
 
-      body.velocity.x = Phaser.Math.Clamp(body.velocity.x, -60, 60);
-      body.velocity.y = Phaser.Math.Clamp(body.velocity.y, -45, 45);
+      body.velocity.x = Phaser.Math.Clamp(body.velocity.x, -60 * dangerMul, 60 * dangerMul);
+      body.velocity.y = Phaser.Math.Clamp(body.velocity.y, -45 * dangerMul, 45 * dangerMul);
 
       // Update shadow position
       const shadow = this.dollShadows.get(spr);
@@ -474,7 +513,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateClaw(dt: number) {
-    const speed = 220;
+    const speed = 220 * (this.hasBuff('SteadyHands') ? 1.2 : 1);
     const boxLeft = this.box.x + 30;
     const boxRight = this.box.x + this.box.width - 30;
 
@@ -507,7 +546,7 @@ export class GameScene extends Phaser.Scene {
       this.clearAimedTarget();
     }
 
-    const dropSpeed = 360;
+    const dropSpeed = 360 * (this.hasBuff('SlowDrop') ? 0.85 : 1);
     const riseSpeed = 420;
 
     if (this.state === 'dropping') {
@@ -566,7 +605,17 @@ export class GameScene extends Phaser.Scene {
       debugGrab: this.debugGrab,
       grabDebugGfx: this.grabDebugGfx,
       add: this.add,
+      grabScale: this.runGrabScale,
     });
+  }
+
+  private hasBuff(id: BuffId) {
+    return this.runBuffs.includes(id);
+  }
+
+  private pityGain() {
+    // Base pity + permanent upgrade + run buff.
+    return 0.04 + (this.save.upgrades.pityPlusLv ?? 0) * 0.005 + this.runPityExtra;
   }
 
   private punchClaw(strength = 1) {
@@ -599,7 +648,8 @@ export class GameScene extends Phaser.Scene {
     this.punchClaw(1);
 
     // Success check with pity/luck bonus
-    const chance = Phaser.Math.Clamp(best.def.catchRate + this.luckBonus, 0, 0.95);
+    const dangerPenalty = this.runDanger * 0.01;
+    const chance = Phaser.Math.Clamp(best.def.catchRate + this.luckBonus - dangerPenalty - this.runChancePenalty, 0, 0.95);
     const roll = Math.random();
 
     if (this.debugGrab) {
@@ -610,7 +660,12 @@ export class GameScene extends Phaser.Scene {
       console.log('[grab]', { name: best.def.name, chance, roll, luckBonus: this.luckBonus, catchRate: best.def.catchRate });
     }
 
-    if (roll <= chance) {
+    const shield = this.hasBuff('SlipShield') && !this.slipShieldUsed;
+    if (roll <= chance || shield) {
+      if (shield && roll > chance) {
+        this.slipShieldUsed = true;
+        this.showToast('Slip Shield!', 800, '#a78bfa');
+      }
       // Grab it
       best.setVelocity(0, 0);
       const body = best.body as Phaser.Physics.Arcade.Body;
@@ -651,8 +706,10 @@ export class GameScene extends Phaser.Scene {
 
       this.failStreak += 1;
       this.winStreak = 0;
-      this.luckBonus = Phaser.Math.Clamp(this.luckBonus + 0.04, 0, 0.35);
+      this.luckBonus = Phaser.Math.Clamp(this.luckBonus + this.pityGain(), 0, 0.35 + this.runLuckCapDelta);
       this.updateHud();
+
+      this.afterAttemptResolved('slip');
     }
   }
 
@@ -698,8 +755,15 @@ export class GameScene extends Phaser.Scene {
 
     this.luckBonus = 0;
 
-    this.save.counts[def.id] = (this.save.counts[def.id] ?? 0) + 1;
-    this.roundNew.add(def.id);
+    const prev = this.save.counts[def.id] ?? 0;
+    this.save.counts[def.id] = prev + 1;
+    const isNew = prev === 0;
+    if (isNew) this.roundNew.add(def.id);
+
+    // Coins: duplicates still feel good.
+    const baseCoins = def.rarity === 'SSR' ? 60 : def.rarity === 'SR' ? 25 : def.rarity === 'R' ? 12 : 5;
+    const newBonus = isNew ? 10 : 0;
+    this.save.coins = (this.save.coins ?? 0) + baseCoins + newBonus;
 
     // Update recent list for hotbar
     this.save.recent = [def.id, ...(this.save.recent ?? []).filter((x) => x !== def.id)].slice(0, 9);
@@ -764,6 +828,8 @@ export class GameScene extends Phaser.Scene {
       duration: T.fast,
       ease: T.ease,
     });
+
+    this.afterAttemptResolved('win');
   }
 
   private onFail(msg: string) {
@@ -771,10 +837,12 @@ export class GameScene extends Phaser.Scene {
     this.winStreak = 0;
 
     // Pity/luck increases slowly, capped
-    this.luckBonus = Phaser.Math.Clamp(this.luckBonus + 0.04, 0, 0.35);
+    this.luckBonus = Phaser.Math.Clamp(this.luckBonus + this.pityGain(), 0, 0.35 + this.runLuckCapDelta);
 
     this.showToast(msg, 900, '#6b7280');
     this.updateHud();
+
+    this.afterAttemptResolved('fail');
   }
 
   private updateHud() {
@@ -783,11 +851,11 @@ export class GameScene extends Phaser.Scene {
     const luckPct = Math.round(this.luckBonus * 100);
 
     this.hudText.setText(
-      `Pokédex ${owned}/${total}  ·  Try ${this.attemptsLeft}/${this.attemptsPerRound}  ·  Luck +${luckPct}%  ·  Streak ${this.winStreak}  ·  Best ${this.save.bestStreak}`,
+      `Pokédex ${owned}/${total}  ·  Try ${this.attemptsLeft}/${this.attemptsPerRound}  ·  Luck +${luckPct}%  ·  Danger ${this.runDanger}  ·  Coins ${this.save.coins ?? 0}`,
     );
 
     // luck bar
-    const max = 0.35;
+    const max = Phaser.Math.Clamp(0.35 + this.runLuckCapDelta, 0.15, 0.5);
     const fullW = 200;
     const ratio = Phaser.Math.Clamp(this.luckBonus / max, 0, 1);
     this.luckBarFill.width = Math.max(0, Math.round(fullW * ratio));
@@ -868,11 +936,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startRound() {
+    this.coinsAtRoundStart = this.save.coins ?? 0;
+
+    // Permanent upgrades (light power, capped)
+    const attemptsPlus = this.save.upgrades.attemptsPlusLv ?? 0; // capped in save load
+    this.attemptsPerRound = this.baseAttemptsPerRound + attemptsPlus;
     this.attemptsLeft = this.attemptsPerRound;
+
     this.roundNew = new Set();
     this.winStreak = 0;
     this.failStreak = 0;
-    this.luckBonus = 0;
+
+    // Reset run state
+    this.runDanger = 0;
+    this.runBuffs = [];
+    this.buffChoicesTaken = 0;
+    this.slipShieldUsed = false;
+    this.runLuckCapDelta = 0;
+    this.runGrabScale = 1;
+    this.runChancePenalty = 0;
+    this.runPityExtra = 0;
+
+    // Start luck from permanent upgrade
+    const startLuck = (this.save.upgrades.startLuckLv ?? 0) * 0.02;
+    this.luckBonus = Phaser.Math.Clamp(startLuck, 0, 0.35);
 
     if (this.roundOverlay) {
       this.roundOverlay.destroy(true);
@@ -895,11 +982,11 @@ export class GameScene extends Phaser.Scene {
 
     const card = this.add.graphics();
     card.fillStyle(T.shadow, T.shadowAlpha);
-    card.fillRoundedRect(243, 164, 480, 220, T.r);
+    card.fillRoundedRect(243, 154, 480, 260, T.r);
     card.fillStyle(T.cardBg, 0.96);
-    card.fillRoundedRect(240, 160, 480, 220, T.r);
+    card.fillRoundedRect(240, 150, 480, 260, T.r);
     card.lineStyle(1, T.border, T.borderAlpha);
-    card.strokeRoundedRect(240, 160, 480, 220, T.r);
+    card.strokeRoundedRect(240, 150, 480, 260, T.r);
 
     const newCount = this.roundNew.size;
     const title = this.add.text(480, 205, 'Round Over', {
@@ -909,20 +996,108 @@ export class GameScene extends Phaser.Scene {
       color: '#f1f5f9',
       shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,0.3)', blur: 4, fill: true },
     }).setOrigin(0.5);
+    const coinsGained = (this.save.coins ?? 0) - (this.coinsAtRoundStart ?? 0);
+    const buffs = this.runBuffs.length ? this.runBuffs.join(', ') : 'None';
     const summary = this.add
-      .text(480, 250, `New: ${newCount}   ·   Best streak: ${this.save.bestStreak}`, {
+      .text(
+        480,
+        252,
+        `New: ${newCount}   ·   Coins +${coinsGained}\nDanger: ${this.runDanger}   ·   Buffs: ${buffs}`,
+        {
+          fontFamily: UI_FONT,
+          fontSize: '14px',
+          color: '#cbd5e1',
+          align: 'center',
+          lineSpacing: 6,
+        },
+      )
+      .setOrigin(0.5);
+
+    // Simple upgrade shop (permanent, light)
+    const overlayObjs: Phaser.GameObjects.GameObject[] = [];
+
+    const coinsText = this.add
+      .text(480, 302, `Coins: ${this.save.coins ?? 0}`, {
         fontFamily: UI_FONT,
-        fontSize: '15px',
-        color: '#cbd5e1',
+        fontSize: '13px',
+        color: '#94a3b8',
       })
       .setOrigin(0.5);
+    overlayObjs.push(coinsText);
+
+    const costs = {
+      startLuck: (lv: number) => 40 * (lv + 1),
+      attempts: (lv: number) => 120 * (lv + 1),
+      pity: (lv: number) => 60 * (lv + 1),
+    };
+
+    const upgradeLines: { key: keyof typeof costs; label: string; cap: number; y: number }[] = [
+      { key: 'startLuck', label: 'Start Luck', cap: 5, y: 324 },
+      { key: 'attempts', label: 'Extra Tries', cap: 2, y: 344 },
+      { key: 'pity', label: 'Pity Gain', cap: 4, y: 364 },
+    ];
+
+    const upgradeTextObjs: Phaser.GameObjects.Text[] = [];
+    const refreshUpgrades = () => {
+      coinsText.setText(`Coins: ${this.save.coins ?? 0}`);
+      for (let i = 0; i < upgradeLines.length; i++) {
+        const u = upgradeLines[i];
+        const lv = u.key === 'startLuck'
+          ? (this.save.upgrades.startLuckLv ?? 0)
+          : u.key === 'attempts'
+            ? (this.save.upgrades.attemptsPlusLv ?? 0)
+            : (this.save.upgrades.pityPlusLv ?? 0);
+        const cap = u.cap;
+        const cost = costs[u.key](lv);
+        const can = lv < cap && (this.save.coins ?? 0) >= cost;
+        const done = lv >= cap;
+        const suffix = done ? 'MAX' : `Lv ${lv}/${cap}  ·  Cost ${cost}`;
+        upgradeTextObjs[i].setText(`${u.label}: ${suffix}`);
+        upgradeTextObjs[i].setStyle({ color: done ? '#475569' : can ? '#e2e8f0' : '#94a3b8' });
+      }
+    };
+
+    for (const u of upgradeLines) {
+      const t = this.add
+        .text(480, u.y, '', {
+          fontFamily: UI_FONT,
+          fontSize: '13px',
+          color: '#94a3b8',
+        })
+        .setOrigin(0.5);
+      const hit = this.add.rectangle(240, u.y - 10, 480, 20, 0x000000, 0).setOrigin(0).setInteractive({ useHandCursor: true });
+      hit.on('pointerover', () => this.sfx.btnHover());
+      hit.on('pointerup', () => {
+        const lv = u.key === 'startLuck'
+          ? (this.save.upgrades.startLuckLv ?? 0)
+          : u.key === 'attempts'
+            ? (this.save.upgrades.attemptsPlusLv ?? 0)
+            : (this.save.upgrades.pityPlusLv ?? 0);
+        if (lv >= u.cap) return;
+        const cost = costs[u.key](lv);
+        if ((this.save.coins ?? 0) < cost) return;
+
+        this.save.coins -= cost;
+        if (u.key === 'startLuck') this.save.upgrades.startLuckLv = lv + 1;
+        if (u.key === 'attempts') this.save.upgrades.attemptsPlusLv = lv + 1;
+        if (u.key === 'pity') this.save.upgrades.pityPlusLv = lv + 1;
+        saveNow(this.save);
+        this.sfx.btnClick();
+        refreshUpgrades();
+      });
+
+      upgradeTextObjs.push(t);
+      overlayObjs.push(hit, t);
+    }
+
+    refreshUpgrades();
 
     // Primary button
     const btnGfx = this.add.graphics();
     btnGfx.fillStyle(0xffb347, 1);
-    btnGfx.fillRoundedRect(400, 300, 160, 44, 22);
+    btnGfx.fillRoundedRect(400, 340, 160, 44, 22);
     const hint = this.add
-      .text(480, 322, 'Tap / Space / Enter', {
+      .text(480, 362, 'Tap / Space / Enter', {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
         fontSize: '16px',
@@ -939,7 +1114,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, btnGfx, hint]).setDepth(120);
+    this.roundOverlay = this.add.container(0, 0, [panel, card, title, summary, ...overlayObjs, btnGfx, hint]).setDepth(120);
     this.roundOverlay.setAlpha(0);
     this.tweens.add({
       targets: this.roundOverlay,
@@ -960,7 +1135,7 @@ export class GameScene extends Phaser.Scene {
 
     // Tap-to-retry
     const hit = this.add
-      .rectangle(400, 300, 160, 44, 0x000000, 0)
+      .rectangle(400, 340, 160, 44, 0x000000, 0)
       .setOrigin(0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', () => retry());
@@ -974,6 +1149,133 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.once('keydown-ENTER', retry);
 
     this.roundOverlay.add(hit);
+  }
+
+  private afterAttemptResolved(outcome: 'win' | 'fail' | 'slip') {
+    // Challenge curve: difficulty grows as the run progresses.
+    this.runDanger += outcome === 'win' ? 2 : 1;
+    this.runDanger = Phaser.Math.Clamp(this.runDanger, 0, 12);
+
+    const used = this.attemptsPerRound - this.attemptsLeft;
+    const idx = (BUFF_MILESTONES as readonly number[]).indexOf(used);
+    if (idx >= 0 && this.buffChoicesTaken <= idx && !this.buffOverlay && !this.roundOverlay) {
+      this.showBuffChoiceOverlay();
+    }
+  }
+
+  private applyBuff(buff: BuffId) {
+    if (this.runBuffs.includes(buff)) return;
+
+    this.runBuffs.push(buff);
+
+    if (buff === 'LuckyStart') {
+      this.runLuckCapDelta -= 0.05;
+      this.luckBonus = Phaser.Math.Clamp(this.luckBonus + 0.06, 0, 0.35 + this.runLuckCapDelta);
+    }
+
+    if (buff === 'GreedyGrip') {
+      this.runGrabScale = Phaser.Math.Clamp(this.runGrabScale * 1.12, 0.8, 1.4);
+      this.runChancePenalty += 0.03;
+    }
+
+    if (buff === 'PityBooster') {
+      this.runPityExtra += 0.02;
+    }
+
+    // SlipShield effect is checked during grab resolution.
+
+    this.updateHud();
+  }
+
+  private showBuffChoiceOverlay() {
+    if (this.buffOverlay) return;
+
+    // Choose 3 distinct buffs, prefer ones not owned.
+    const owned = new Set(this.runBuffs);
+    const pool = BUFF_POOL.filter((b) => !owned.has(b.id));
+    const src = pool.length >= 3 ? pool : BUFF_POOL;
+
+    const picks: BuffDef[] = [];
+    const bag = [...src];
+    while (picks.length < 3 && bag.length > 0) {
+      const i = Phaser.Math.Between(0, bag.length - 1);
+      picks.push(bag.splice(i, 1)[0]);
+    }
+
+    const panel = this.add.graphics();
+    panel.fillStyle(0x0b0f1a, 0.75);
+    panel.fillRect(0, 0, 960, 540);
+
+    const title = this.add.text(480, 120, 'Choose 1 Upgrade', {
+      fontFamily: UI_FONT,
+      fontStyle: 'bold',
+      fontSize: '26px',
+      color: '#f1f5f9',
+    }).setOrigin(0.5);
+
+    const sub = this.add.text(480, 155, `Pick ${this.buffChoicesTaken + 1}/3`, {
+      fontFamily: UI_FONT,
+      fontSize: '13px',
+      color: '#94a3b8',
+    }).setOrigin(0.5);
+
+    const cards: Phaser.GameObjects.GameObject[] = [];
+    const x0 = 140;
+    const y0 = 210;
+    const cw = 220;
+    const ch = 240;
+    const gap = 30;
+
+    const choose = (id: BuffId) => {
+      this.buffChoicesTaken += 1;
+      this.applyBuff(id);
+      if (this.buffOverlay) {
+        this.buffOverlay.destroy(true);
+        this.buffOverlay = undefined;
+      }
+      this.sfx.btnClick();
+    };
+
+    for (let k = 0; k < picks.length; k++) {
+      const b = picks[k];
+      const x = x0 + k * (cw + gap);
+      const y = y0;
+
+      const g = this.add.graphics();
+      g.fillStyle(T.cardBg, 0.96);
+      g.fillRoundedRect(x, y, cw, ch, T.r);
+      g.lineStyle(1, T.border, T.borderAlpha);
+      g.strokeRoundedRect(x, y, cw, ch, T.r);
+
+      const name = this.add.text(x + cw / 2, y + 48, b.name, {
+        fontFamily: UI_FONT,
+        fontStyle: 'bold',
+        fontSize: '18px',
+        color: '#e2e8f0',
+        align: 'center',
+      }).setOrigin(0.5);
+
+      const desc = this.add.text(x + 18, y + 86, b.desc, {
+        fontFamily: UI_FONT,
+        fontSize: '14px',
+        color: '#cbd5e1',
+        wordWrap: { width: cw - 36 },
+        lineSpacing: 6,
+      }).setOrigin(0, 0);
+
+      const btn = this.add.rectangle(x, y, cw, ch, 0x000000, 0).setOrigin(0).setInteractive({ useHandCursor: true });
+      btn.on('pointerover', () => this.sfx.btnHover());
+      btn.on('pointerup', () => choose(b.id));
+
+      cards.push(g, name, desc, btn);
+    }
+
+    // Block clicks on background.
+    panel.setInteractive(new Phaser.Geom.Rectangle(0, 0, 960, 540), Phaser.Geom.Rectangle.Contains);
+
+    this.buffOverlay = this.add.container(0, 0, [panel, title, sub, ...cards]).setDepth(130);
+    this.buffOverlay.setAlpha(0);
+    this.tweens.add({ targets: this.buffOverlay, alpha: 1, duration: 160, ease: 'Sine.easeOut' });
   }
 
   private updateAimedTarget() {

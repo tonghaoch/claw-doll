@@ -10,14 +10,17 @@ export type GrabContext = {
   debugGrab: boolean;
   grabDebugGfx?: Phaser.GameObjects.Graphics;
   add: Phaser.Scene['add'];
+  /** Optional multiplier for grab window size. */
+  grabScale?: number;
 };
 
 export function findGrabCandidate(ctx: GrabContext): DollSprite | undefined {
   // Find nearest doll under claw arms area.
   // Tuned so "visually touching" is more likely to register, especially on mobile.
   // The claw arms sprite is around (clawY + 28). The actual "pinch" feels closer to ~ (clawY + 46).
-  const grabW = 66;
-  const grabH = 44;
+  const s = Phaser.Math.Clamp(ctx.grabScale ?? 1, 0.8, 1.4);
+  const grabW = 66 * s;
+  const grabH = 44 * s;
   const grabX = ctx.clawX - grabW / 2;
   const grabY = ctx.clawY + 30;
   const clawRect = new Phaser.Geom.Rectangle(grabX, grabY, grabW, grabH);
