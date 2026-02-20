@@ -65,6 +65,7 @@ export class GameScene extends Phaser.Scene {
   private clawPunchY = 0;
 
   private luckBarFill!: Phaser.GameObjects.Rectangle;
+  private luckBarFullW = 200;
 
   private flash!: Phaser.GameObjects.Rectangle;
 
@@ -206,7 +207,8 @@ export class GameScene extends Phaser.Scene {
     const luckBg = this.add.graphics().setDepth(10);
     luckBg.fillStyle(0x4a3055, 1);
     const luckX = hudX + 4;
-    const luckW = Math.max(120, Math.min(200, hudW - 220));
+    const luckW = Math.max(110, Math.min(200, hudW - 220));
+    this.luckBarFullW = luckW;
     luckBg.fillRoundedRect(luckX, 44, luckW, 8, 4);
     this.luckBarFill = this.add.rectangle(luckX, 48, 0, 6, 0x66bb6a, 1).setOrigin(0, 0.5).setDepth(11);
 
@@ -896,13 +898,25 @@ export class GameScene extends Phaser.Scene {
     const total = DOLLS.length;
     const luckPct = Math.round(this.luckBonus * 100);
 
-    this.hudText.setText(
-      `Pokédex ${owned}/${total}  ·  Try ${this.attemptsLeft}/${this.attemptsPerRound}  ·  Luck +${luckPct}%  ·  Danger ${this.runDanger}  ·  Coins ${this.save.coins ?? 0}`,
-    );
+    const coins = this.save.coins ?? 0;
+    const mobile = this.scale.width < 520;
+
+    if (mobile) {
+      // Two-line compact HUD for phones.
+      this.hudText.setFontSize('12px');
+      this.hudText.setText(
+        `Dex ${owned}/${total} · Try ${this.attemptsLeft}/${this.attemptsPerRound}\nLuck +${luckPct}% · Dng ${this.runDanger} · $ ${coins}`,
+      );
+    } else {
+      this.hudText.setFontSize('14px');
+      this.hudText.setText(
+        `Pokédex ${owned}/${total}  ·  Try ${this.attemptsLeft}/${this.attemptsPerRound}  ·  Luck +${luckPct}%  ·  Danger ${this.runDanger}  ·  Coins ${coins}`,
+      );
+    }
 
     // luck bar
     const max = Phaser.Math.Clamp(0.35 + this.runLuckCapDelta, 0.15, 0.5);
-    const fullW = 200;
+    const fullW = this.luckBarFullW;
     const ratio = Phaser.Math.Clamp(this.luckBonus / max, 0, 1);
     this.luckBarFill.width = Math.max(0, Math.round(fullW * ratio));
     // green -> yellow near max
