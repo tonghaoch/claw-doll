@@ -6,6 +6,7 @@ import { T, UI_FONT } from './game/theme';
 import { getDebugFlags } from './game/debug';
 import { findGrabCandidate } from './game/grab';
 import { Sfx } from './game/sfx';
+import { hitStop, shake } from './game/feedback';
 
 type DollSprite = Phaser.Physics.Arcade.Image & { def: DollDef };
 
@@ -34,6 +35,9 @@ export class GameScene extends Phaser.Scene {
   private clawString!: Phaser.GameObjects.Rectangle;
   private clawShadow!: Phaser.GameObjects.Ellipse;
   private aimLine!: Phaser.GameObjects.Graphics;
+
+  // Tiny visual weight feedback on grab/win/slip.
+  private clawPunchY = 0;
 
   private luckBarFill!: Phaser.GameObjects.Rectangle;
 
@@ -546,11 +550,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     // render claw parts
+    const py = this.clawPunchY;
     this.clawString.setPosition(this.clawX, this.clawTopY);
-    this.clawString.height = Math.max(1, this.clawY - this.clawTopY);
-    this.clawBody.setPosition(this.clawX, this.clawY + 18);
-    this.clawArms.setPosition(this.clawX, this.clawY + 28);
-    this.clawShadow.setPosition(this.clawX, this.clawY + 38);
+    this.clawString.height = Math.max(1, this.clawY - this.clawTopY + py);
+    this.clawBody.setPosition(this.clawX, this.clawY + 18 + py);
+    this.clawArms.setPosition(this.clawX, this.clawY + 28 + py);
+    this.clawShadow.setPosition(this.clawX, this.clawY + 38 + py);
   }
 
   private findGrabCandidate(): DollSprite | undefined {
@@ -561,6 +566,22 @@ export class GameScene extends Phaser.Scene {
       debugGrab: this.debugGrab,
       grabDebugGfx: this.grabDebugGfx,
       add: this.add,
+    });
+  }
+
+  private punchClaw(strength = 1) {
+    const s = Phaser.Math.Clamp(strength, 0.6, 1.8);
+    // Kill any existing punch tween implicitly by tweening the same target.
+    const obj = { v: this.clawPunchY };
+    this.tweens.add({
+      targets: obj,
+      v: { from: 0, to: 6 * s },
+      duration: 70,
+      ease: 'Sine.easeOut',
+      yoyo: true,
+      hold: 30,
+      onUpdate: () => (this.clawPunchY = obj.v),
+      onComplete: () => (this.clawPunchY = 0),
     });
   }
 
@@ -575,6 +596,7 @@ export class GameScene extends Phaser.Scene {
     // A tiny pause makes the grab feel "mechanical" (arcade clack).
     this.grabPauseUntil = this.time.now + 90;
     this.sfx.clack(best.def);
+    this.punchClaw(1);
 
     // Success check with pity/luck bonus
     const chance = Phaser.Math.Clamp(best.def.catchRate + this.luckBonus, 0, 0.95);
@@ -597,7 +619,10 @@ export class GameScene extends Phaser.Scene {
       this.grabbed = best;
 
       // Let the clack land before the jingle.
-      this.time.delayedCall(70, () => this.onWin(best.def));
+      this.time.delayedCall(70, () => {
+        hitStop(this, { ms: 70, scale: 0.18 });
+        this.onWin(best.def);
+      });
     } else {
       // Slip feedback: clamp it briefly then let it fall back.
       // slip sequence (brief attach then release)
@@ -607,7 +632,9 @@ export class GameScene extends Phaser.Scene {
       body.enable = false;
       this.grabbed = best;
 
-      this.cameras.main.shake(70, 0.004);
+      hitStop(this, { ms: 90, scale: 0.16 });
+      shake(this, 'slip');
+      this.punchClaw(1.4);
       this.showToast(`滑了！${best.def.name}`, 900, '#6b7280');
 
       // Release soon so finishGrab() won't remove it.
@@ -687,7 +714,18 @@ export class GameScene extends Phaser.Scene {
     } as const;
     const f = fx[def.rarity];
 
-    this.cameras.main.shake(f.dur, f.shake);
+    // Time + camera feedback (A-style: light slow-down, not full freeze)
+    if (def.rarity === 'SSR') hitStop(this, { ms: 120, scale: 0.12 });
+    else if (def.rarity === 'SR') hitStop(this, { ms: 95, scale: 0.14 });
+    else if (def.rarity === 'R') hitStop(this, { ms: 75, scale: 0.16 });
+    else hitStop(this, { ms: 60, scale: 0.18 });
+
+    if (def.rarity === 'SSR') shake(this, 'winSSR');
+    else if (def.rarity === 'SR') shake(this, 'winSR');
+    else if (def.rarity === 'R') shake(this, 'winR');
+    else shake(this, 'winN');
+
+    this.punchClaw(def.rarity === 'SSR' ? 1.6 : def.rarity === 'SR' ? 1.35 : def.rarity === 'R' ? 1.15 : 1);
     this.spawnSpark(this.clawX, this.clawY + 44, f.sparks, 28, def.color);
     this.spawnPixelChunks(this.clawX, this.clawY + 44, f.chunks, f.chunkSpread, def.color);
 
