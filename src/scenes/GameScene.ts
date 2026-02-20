@@ -398,7 +398,9 @@ export class GameScene extends Phaser.Scene {
     // box — modern glass arcade container
     // Mobile UX: make the play area taller (≈64% of screen height) and centered.
     const boxH = Math.round(h * 0.64);
-    const boxW = Math.round(Math.min(w * 0.86, boxH * 1.9)); // keep it comfortably wide but not edge-to-edge
+    // Ensure visible padding on both sides, especially on narrow phones.
+    const sidePad = Math.max(16, Math.round(w * 0.06));
+    const boxW = Math.round(Math.min(w - sidePad * 2, boxH * 1.9)); // keep it comfortably wide but not edge-to-edge
     const boxX = Math.round((w - boxW) / 2);
 
     // Leave room for top HUD + claw head space + bottom UI.
@@ -1557,11 +1559,22 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private safeBottomPx() {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom');
+      const n = Number.parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   private createHotbar() {
     const sw = this.scale.width;
     const sh = this.scale.height;
     const cx = sw / 2;
-    const y = Math.round(sh - Math.max(30, sh * 0.06));
+    const safeBottom = this.safeBottomPx();
+    const y = Math.round(sh - safeBottom - Math.max(42, sh * 0.07));
     const slots = 9;
     const pad = 6;
     const maxSize = 36;
