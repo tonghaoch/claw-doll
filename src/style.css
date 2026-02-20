@@ -25,7 +25,11 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #0b1020;
+  /* Fill the entire screen behind the Phaser canvas to avoid "black bars" on tall phones. */
+  background:
+    radial-gradient(1200px 800px at 50% 20%, rgba(255, 179, 71, 0.18), rgba(0, 0, 0, 0) 60%),
+    radial-gradient(900px 700px at 20% 80%, rgba(46, 196, 182, 0.14), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(180deg, #0b1020 0%, #140d1f 55%, #0b1020 100%);
 }
 
 #app {

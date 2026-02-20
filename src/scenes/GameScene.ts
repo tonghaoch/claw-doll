@@ -158,6 +158,9 @@ export class GameScene extends Phaser.Scene {
 
     this.debugGrab = getDebugFlags(window.location.search).debugGrab;
 
+    // On mobile, handle orientation / viewport changes by rebuilding the scene layout.
+    this.scale.on('resize', () => this.scene.restart());
+
     this.drawScene();
     this.spawnDolls();
 
@@ -177,7 +180,7 @@ export class GameScene extends Phaser.Scene {
     this.luckBarFill = this.add.rectangle(16, 48, 0, 6, 0x66bb6a, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
-      .text(480, 40, '', {
+      .text(this.scale.width / 2, 40, '', {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
         fontSize: '20px',
@@ -329,8 +332,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawScene() {
-    const w = 960;
-    const h = 540;
+    const w = this.scale.width;
+    const h = this.scale.height;
 
     // Multi-stop gradient background (warm sunset)
     const bg = this.add.graphics().setDepth(0);
@@ -370,10 +373,16 @@ export class GameScene extends Phaser.Scene {
     this.time.addEvent({ delay: 900, loop: true, callback: () => this.spawnDust() });
 
     // box — modern glass arcade container
-    const boxX = 160;
-    const boxY = 140;
-    const boxW = 640;
-    const boxH = 320;
+    // Mobile UX: make the play area taller (≈64% of screen height) and centered.
+    const boxH = Math.round(h * 0.64);
+    const boxW = Math.round(Math.min(w * 0.86, boxH * 1.9)); // keep it comfortably wide but not edge-to-edge
+    const boxX = Math.round((w - boxW) / 2);
+
+    // Leave room for top HUD + claw head space + bottom UI.
+    let boxY = Math.round(h * 0.18);
+    const minBottomRoom = Math.max(90, Math.round(h * 0.14));
+    const maxY = h - minBottomRoom - boxH;
+    boxY = Phaser.Math.Clamp(boxY, 80, Math.max(80, maxY));
 
     // Outer frame with subtle depth
     const g = this.add.graphics().setDepth(2);
@@ -420,7 +429,7 @@ export class GameScene extends Phaser.Scene {
 
     // claw
     this.clawX = boxX + boxW / 2;
-    this.clawTopY = 70;
+    this.clawTopY = Math.max(44, boxY - Math.min(70, Math.round(h * 0.12)));
     this.clawY = this.clawTopY;
 
     this.clawString = this.add.rectangle(this.clawX, this.clawTopY, 2, 1, 0x5a6670).setOrigin(0.5, 0).setDepth(7);
@@ -869,15 +878,19 @@ export class GameScene extends Phaser.Scene {
   private createStartOverlay() {
     this.started = false;
 
+    const sw = this.scale.width;
+    const sh = this.scale.height;
+    const cx = sw / 2;
+
     const panel = this.add.graphics();
-    panel.fillStyle(0x2a1a2e, 0.50);
-    panel.fillRect(0, 0, 960, 540);
+    panel.fillStyle(0x2a1a2e, 0.5);
+    panel.fillRect(0, 0, sw, sh);
 
     const card = this.add.graphics();
-    const x = 240;
-    const y = 140;
-    const w = 480;
-    const h = 260;
+    const w = Math.min(520, Math.round(sw * 0.88));
+    const h = Math.min(320, Math.round(sh * 0.5));
+    const x = Math.round(cx - w / 2);
+    const y = Math.round(sh * 0.22);
     card.fillStyle(T.shadow, T.shadowAlpha);
     card.fillRoundedRect(x + 3, y + 4, w, h, T.r);
     card.fillStyle(T.cardBg, 0.96);
@@ -885,7 +898,7 @@ export class GameScene extends Phaser.Scene {
     card.lineStyle(1, T.border, T.borderAlpha);
     card.strokeRoundedRect(x, y, w, h, T.r);
 
-    const title = this.add.text(480, 185, 'Claw Doll', {
+    const title = this.add.text(cx, y + 45, 'Claw Doll', {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '36px',
@@ -893,13 +906,13 @@ export class GameScene extends Phaser.Scene {
       shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,0.3)', blur: 4, fill: true },
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(480, 225, 'Collect adorable dolls with the claw', {
+    const subtitle = this.add.text(cx, y + 85, 'Collect adorable dolls with the claw', {
       fontFamily: UI_FONT,
       fontSize: '16px',
       color: '#94a3b8',
     }).setOrigin(0.5);
 
-    const how = this.add.text(480, 270, '←/→ move    Space drop\nTap drop · Hold left/right to move\nP pokédex    R reset    M mute', {
+    const how = this.add.text(cx, y + 135, '←/→ move    Space drop\nTap drop · Hold left/right to move\nP pokédex    R reset    M mute', {
       fontFamily: UI_FONT,
       fontSize: '14px',
       color: '#cbd5e1',
@@ -910,8 +923,8 @@ export class GameScene extends Phaser.Scene {
     // Primary button style
     const btnGfx = this.add.graphics();
     btnGfx.fillStyle(0xffb347, 1);
-    btnGfx.fillRoundedRect(400, 330, 160, 44, 22);
-    const start = this.add.text(480, 352, 'Tap / Space', {
+    btnGfx.fillRoundedRect(cx - 80, y + h - 58, 160, 44, 22);
+    const start = this.add.text(cx, y + h - 36, 'Tap / Space', {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '16px',
@@ -985,20 +998,29 @@ export class GameScene extends Phaser.Scene {
     this.state = 'idle';
     this.clearAimedTarget();
 
+    const sw = this.scale.width;
+    const sh = this.scale.height;
+    const cx = sw / 2;
+
     const panel = this.add.graphics();
     panel.fillStyle(0x2a1a2e, 0.82);
-    panel.fillRect(0, 0, 960, 540);
+    panel.fillRect(0, 0, sw, sh);
 
     const card = this.add.graphics();
+    const cardW = Math.min(520, Math.round(sw * 0.9));
+    const cardH = Math.min(340, Math.round(sh * 0.62));
+    const cardX = Math.round(cx - cardW / 2);
+    const cardY = Math.round(sh * 0.18);
+
     card.fillStyle(T.shadow, T.shadowAlpha);
-    card.fillRoundedRect(243, 134, 480, 300, T.r);
+    card.fillRoundedRect(cardX + 3, cardY + 4, cardW, cardH, T.r);
     card.fillStyle(T.cardBg, 0.96);
-    card.fillRoundedRect(240, 130, 480, 300, T.r);
+    card.fillRoundedRect(cardX, cardY, cardW, cardH, T.r);
     card.lineStyle(1, T.border, T.borderAlpha);
-    card.strokeRoundedRect(240, 130, 480, 300, T.r);
+    card.strokeRoundedRect(cardX, cardY, cardW, cardH, T.r);
 
     const newCount = this.roundNew.size;
-    const title = this.add.text(480, 178, 'Round Over', {
+    const title = this.add.text(cx, cardY + 44, 'Round Over', {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '28px',
@@ -1007,7 +1029,7 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5);
     const coinsGained = (this.save.coins ?? 0) - (this.coinsAtRoundStart ?? 0);
     const summary = this.add
-      .text(480, 220, `New: ${newCount}  ·  Coins +${coinsGained}  ·  Danger ${this.runDanger}  ·  Buffs ${this.runBuffs.length}/3`, {
+      .text(cx, cardY + 86, `New: ${newCount}  ·  Coins +${coinsGained}  ·  Danger ${this.runDanger}  ·  Buffs ${this.runBuffs.length}/3`, {
         fontFamily: UI_FONT,
         fontSize: '14px',
         color: '#cbd5e1',
@@ -1019,7 +1041,7 @@ export class GameScene extends Phaser.Scene {
     const overlayObjs: Phaser.GameObjects.GameObject[] = [];
 
     const coinsText = this.add
-      .text(480, 255, `Coins: ${this.save.coins ?? 0}`, {
+      .text(cx, cardY + 120, `Coins: ${this.save.coins ?? 0}`, {
         fontFamily: UI_FONT,
         fontSize: '13px',
         color: '#94a3b8',
@@ -1034,9 +1056,9 @@ export class GameScene extends Phaser.Scene {
     };
 
     const upgradeLines: { key: keyof typeof costs; label: string; cap: number; y: number }[] = [
-      { key: 'startLuck', label: 'Start Luck', cap: 5, y: 282 },
-      { key: 'attempts', label: 'Extra Tries', cap: 2, y: 304 },
-      { key: 'pity', label: 'Pity Gain', cap: 4, y: 326 },
+      { key: 'startLuck', label: 'Start Luck', cap: 5, y: cardY + 150 },
+      { key: 'attempts', label: 'Extra Tries', cap: 2, y: cardY + 174 },
+      { key: 'pity', label: 'Pity Gain', cap: 4, y: cardY + 198 },
     ];
 
     const upgradeTextObjs: Phaser.GameObjects.Text[] = [];
@@ -1067,7 +1089,10 @@ export class GameScene extends Phaser.Scene {
           color: '#94a3b8',
         })
         .setOrigin(0.5);
-      const hit = this.add.rectangle(240, u.y - 10, 480, 20, 0x000000, 0).setOrigin(0).setInteractive({ useHandCursor: true });
+      const hit = this.add
+        .rectangle(cardX, u.y - 10, cardW, 20, 0x000000, 0)
+        .setOrigin(0)
+        .setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => this.sfx.btnHover());
       hit.on('pointerup', () => {
         const lv = u.key === 'startLuck'
@@ -1097,9 +1122,9 @@ export class GameScene extends Phaser.Scene {
     // Primary button
     const btnGfx = this.add.graphics();
     btnGfx.fillStyle(0xffb347, 1);
-    btnGfx.fillRoundedRect(400, 360, 160, 44, 22);
+    btnGfx.fillRoundedRect(cx - 80, cardY + cardH - 60, 160, 44, 22);
     const hint = this.add
-      .text(480, 382, 'Tap / Space / Enter', {
+      .text(cx, cardY + cardH - 38, 'Tap / Space / Enter', {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
         fontSize: '16px',
@@ -1153,13 +1178,13 @@ export class GameScene extends Phaser.Scene {
 
     // Tap-to-retry
     const hit = this.add
-      .rectangle(400, 360, 160, 44, 0x000000, 0)
+      .rectangle(cx - 80, cardY + cardH - 60, 160, 44, 0x000000, 0)
       .setOrigin(0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', () => retry());
 
     // Also allow tapping anywhere on the dark panel to continue.
-    panel.setInteractive(new Phaser.Geom.Rectangle(0, 0, 960, 540), Phaser.Geom.Rectangle.Contains);
+    panel.setInteractive(new Phaser.Geom.Rectangle(0, 0, sw, sh), Phaser.Geom.Rectangle.Contains);
     panel.on('pointerup', () => retry());
 
     // One-shot key handler
@@ -1216,16 +1241,16 @@ export class GameScene extends Phaser.Scene {
 
     const panel = this.add.graphics();
     panel.fillStyle(0x0b0f1a, 0.78);
-    panel.fillRect(0, 0, 960, 540);
+    panel.fillRect(0, 0, this.scale.width, this.scale.height);
 
-    const title = this.add.text(480, 118, opts.title, {
+    const title = this.add.text(this.scale.width / 2, 118, opts.title, {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '24px',
       color: '#f1f5f9',
     }).setOrigin(0.5);
 
-    const sub = this.add.text(480, 150, 'Pick one. It will apply to your next run.', {
+    const sub = this.add.text(this.scale.width / 2, 150, 'Pick one. It will apply to your next run.', {
       fontFamily: UI_FONT,
       fontSize: '13px',
       color: '#94a3b8',
@@ -1236,7 +1261,7 @@ export class GameScene extends Phaser.Scene {
     const ch = 230;
     const gap = 30;
     const totalW = NEXT_RUN_BUFF_CHOICES * cw + (NEXT_RUN_BUFF_CHOICES - 1) * gap;
-    const x0 = 480 - totalW / 2;
+    const x0 = this.scale.width / 2 - totalW / 2;
     const y0 = 200;
 
     const choose = (id: BuffId) => {
@@ -1286,7 +1311,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Block clicks on background.
-    panel.setInteractive(new Phaser.Geom.Rectangle(0, 0, 960, 540), Phaser.Geom.Rectangle.Contains);
+    panel.setInteractive(new Phaser.Geom.Rectangle(0, 0, this.scale.width, this.scale.height), Phaser.Geom.Rectangle.Contains);
 
     this.buffOverlay = this.add.container(0, 0, [panel, title, sub, ...cards]).setDepth(130);
     this.buffOverlay.setAlpha(0);
@@ -1510,11 +1535,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createHotbar() {
-    const cx = 480;
-    const y = 510;
+    const sw = this.scale.width;
+    const sh = this.scale.height;
+    const cx = sw / 2;
+    const y = Math.round(sh - Math.max(30, sh * 0.06));
     const slots = 9;
-    const size = 36;
     const pad = 6;
+    const maxSize = 36;
+    const size = Phaser.Math.Clamp(Math.floor((sw - 90 - (slots - 1) * pad - 20) / slots), 24, maxSize);
     const totalW = slots * size + (slots - 1) * pad + 20;
     const x0 = cx - totalW / 2;
 

@@ -15,10 +15,11 @@ const config: Phaser.Types.Core.GameConfig = {
   pixelArt: false,
   roundPixels: false,
   scale: {
-    mode: Phaser.Scale.FIT,
+    // Mobile-first: resize canvas to fill the screen; scenes lay out responsively.
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 960,
-    height: 540,
+    width: window.innerWidth,
+    height: window.innerHeight,
   },
   physics: {
     default: 'arcade',
