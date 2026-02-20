@@ -187,20 +187,28 @@ export class GameScene extends Phaser.Scene {
     this.drawScene();
     this.spawnDolls();
 
-    // HUD glass card
+    // HUD glass card (responsive; avoid overflow on narrow phones)
+    const sw = this.scale.width;
+    const safeL = this.safeInsetPx('--safe-left');
+    const safeR = this.safeInsetPx('--safe-right');
+    const hudX = Math.round(12 + safeL);
+    const hudW = Math.round(Math.min(440, sw - hudX - 12 - safeR));
+
     const hudCard = this.add.graphics().setDepth(9);
     hudCard.fillStyle(T.shadow, T.shadowAlpha);
-    hudCard.fillRoundedRect(14, 13, 440, 46, T.r);
+    hudCard.fillRoundedRect(hudX + 2, 13, hudW, 46, T.r);
     hudCard.fillStyle(T.cardBg, T.cardAlpha);
-    hudCard.fillRoundedRect(12, 10, 440, 46, T.r);
+    hudCard.fillRoundedRect(hudX, 10, hudW, 46, T.r);
     hudCard.lineStyle(1, T.border, T.borderAlpha);
-    hudCard.strokeRoundedRect(12, 10, 440, 46, T.r);
+    hudCard.strokeRoundedRect(hudX, 10, hudW, 46, T.r);
 
     // Luck bar (modern rounded)
     const luckBg = this.add.graphics().setDepth(10);
     luckBg.fillStyle(0x4a3055, 1);
-    luckBg.fillRoundedRect(16, 44, 200, 8, 4);
-    this.luckBarFill = this.add.rectangle(16, 48, 0, 6, 0x66bb6a, 1).setOrigin(0, 0.5).setDepth(11);
+    const luckX = hudX + 4;
+    const luckW = Math.max(120, Math.min(200, hudW - 220));
+    luckBg.fillRoundedRect(luckX, 44, luckW, 8, 4);
+    this.luckBarFill = this.add.rectangle(luckX, 48, 0, 6, 0x66bb6a, 1).setOrigin(0, 0.5).setDepth(11);
 
     this.toastText = this.add
       .text(this.scale.width / 2, 40, '', {
@@ -215,14 +223,15 @@ export class GameScene extends Phaser.Scene {
       .setAlpha(0);
 
     this.hudText = this.add
-      .text(24, 22, '', {
+      .text(hudX + 12, 22, '', {
         fontFamily: UI_FONT,
         fontStyle: '600',
         fontSize: '14px',
         color: '#e2e8f0',
         shadow: { offsetX: 0, offsetY: 1, color: 'rgba(0,0,0,0.3)', blur: 3, fill: true },
       })
-      .setDepth(10);
+      .setDepth(10)
+      .setWordWrapWidth(Math.max(200, hudW - 220));
 
     this.updateHud();
 
@@ -1559,9 +1568,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private safeBottomPx() {
+  private safeInsetPx(varName: '--safe-top' | '--safe-right' | '--safe-bottom' | '--safe-left') {
     try {
-      const v = getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom');
+      const v = getComputedStyle(document.documentElement).getPropertyValue(varName);
       const n = Number.parseFloat(v);
       return Number.isFinite(n) ? n : 0;
     } catch {
@@ -1573,7 +1582,7 @@ export class GameScene extends Phaser.Scene {
     const sw = this.scale.width;
     const sh = this.scale.height;
     const cx = sw / 2;
-    const safeBottom = this.safeBottomPx();
+    const safeBottom = this.safeInsetPx('--safe-bottom');
     const y = Math.round(sh - safeBottom - Math.max(42, sh * 0.07));
     const slots = 9;
     const pad = 6;
