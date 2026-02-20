@@ -158,8 +158,31 @@ export class GameScene extends Phaser.Scene {
 
     this.debugGrab = getDebugFlags(window.location.search).debugGrab;
 
-    // On mobile, handle orientation / viewport changes by rebuilding the scene layout.
-    this.scale.on('resize', () => this.scene.restart());
+    // On mobile, the browser address bar can cause tiny viewport resizes even without clicks.
+    // Debounce and ignore small changes to avoid "auto re-render" / flicker.
+    let lastW = this.scale.width;
+    let lastH = this.scale.height;
+    let pending: number | null = null;
+
+    this.scale.on('resize', (gameSize: any) => {
+      if (pending) window.clearTimeout(pending);
+      pending = window.setTimeout(() => {
+        pending = null;
+
+        const w = Math.round(gameSize?.width ?? this.scale.width);
+        const h = Math.round(gameSize?.height ?? this.scale.height);
+
+        const dw = Math.abs(w - lastW);
+        const dh = Math.abs(h - lastH);
+
+        // Ignore tiny changes from mobile browser chrome.
+        if (dw < 24 && dh < 24) return;
+
+        lastW = w;
+        lastH = h;
+        this.scene.restart();
+      }, 200);
+    });
 
     this.drawScene();
     this.spawnDolls();
