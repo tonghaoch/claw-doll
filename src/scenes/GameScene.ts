@@ -28,7 +28,8 @@ type BuffDef = {
   desc: string;
 };
 
-const BUFF_MILESTONES = [3, 6, 9] as const;
+// Buff choice frequency: once per round, chosen at Round Over and applied to next round.
+const NEXT_RUN_BUFF_CHOICES = 3 as const;
 
 const BUFF_POOL: BuffDef[] = [
   { id: 'SteadyHands', name: 'Steady Hands', desc: 'Move speed +20% (this run).' },
@@ -102,8 +103,10 @@ export class GameScene extends Phaser.Scene {
   private buffOverlay?: Phaser.GameObjects.Container;
   private runDanger = 0;
   private runBuffs: BuffId[] = [];
-  private buffChoicesTaken = 0;
   private slipShieldUsed = false;
+
+  // One selectable upgrade between rounds (applies to next run).
+  private nextRunBuff?: BuffId;
   private runLuckCapDelta = 0; // modifies max luck
   private runGrabScale = 1;
   private runChancePenalty = 0; // subtract from effective chance
@@ -950,7 +953,6 @@ export class GameScene extends Phaser.Scene {
     // Reset run state
     this.runDanger = 0;
     this.runBuffs = [];
-    this.buffChoicesTaken = 0;
     this.slipShieldUsed = false;
     this.runLuckCapDelta = 0;
     this.runGrabScale = 1;
@@ -960,6 +962,13 @@ export class GameScene extends Phaser.Scene {
     // Start luck from permanent upgrade
     const startLuck = (this.save.upgrades.startLuckLv ?? 0) * 0.02;
     this.luckBonus = Phaser.Math.Clamp(startLuck, 0, 0.35);
+
+    // Apply the between-round buff (if any) to the new run.
+    if (this.nextRunBuff) {
+      const b = this.nextRunBuff;
+      this.nextRunBuff = undefined;
+      this.applyBuff(b);
+    }
 
     if (this.roundOverlay) {
       this.roundOverlay.destroy(true);
@@ -1118,8 +1127,24 @@ export class GameScene extends Phaser.Scene {
     });
     this.sfx.roundOver();
 
+    let nextBuffChosen = false;
+
     const retry = () => {
       if (!this.roundOverlay) return;
+
+      // Require picking a next-run upgrade before continuing.
+      if (!nextBuffChosen) {
+        this.showBuffChoiceOverlay({
+          title: 'Choose 1 Upgrade (Next Run)',
+          onChoose: (id) => {
+            this.nextRunBuff = id;
+            nextBuffChosen = true;
+            this.showToast(`Next run: ${id}`, 1000, '#a78bfa');
+          },
+        });
+        return;
+      }
+
       this.roundOverlay.destroy(true);
       this.roundOverlay = undefined;
       this.sfx.retry();
@@ -1148,16 +1173,6 @@ export class GameScene extends Phaser.Scene {
     // Challenge curve: difficulty grows as the run progresses.
     this.runDanger += outcome === 'win' ? 2 : 1;
     this.runDanger = Phaser.Math.Clamp(this.runDanger, 0, 12);
-
-    const used = this.attemptsPerRound - this.attemptsLeft;
-    const idx = (BUFF_MILESTONES as readonly number[]).indexOf(used);
-    if (idx >= 0 && this.buffChoicesTaken <= idx && !this.buffOverlay && !this.roundOverlay) {
-      // Delay a bit so the player can see the win/fail feedback first.
-      this.time.delayedCall(650, () => {
-        if (this.buffOverlay || this.roundOverlay) return;
-        this.showBuffChoiceOverlay();
-      });
-    }
   }
 
   private applyBuff(buff: BuffId) {
@@ -1184,48 +1199,48 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
   }
 
-  private showBuffChoiceOverlay() {
+  private showBuffChoiceOverlay(opts: { title: string; onChoose: (id: BuffId) => void }) {
     if (this.buffOverlay) return;
 
-    // Choose 3 distinct buffs, prefer ones not owned.
+    // Choose N distinct buffs, prefer ones not already owned in this run.
     const owned = new Set(this.runBuffs);
     const pool = BUFF_POOL.filter((b) => !owned.has(b.id));
-    const src = pool.length >= 3 ? pool : BUFF_POOL;
+    const src = pool.length >= NEXT_RUN_BUFF_CHOICES ? pool : BUFF_POOL;
 
     const picks: BuffDef[] = [];
     const bag = [...src];
-    while (picks.length < 3 && bag.length > 0) {
+    while (picks.length < NEXT_RUN_BUFF_CHOICES && bag.length > 0) {
       const i = Phaser.Math.Between(0, bag.length - 1);
       picks.push(bag.splice(i, 1)[0]);
     }
 
     const panel = this.add.graphics();
-    panel.fillStyle(0x0b0f1a, 0.75);
+    panel.fillStyle(0x0b0f1a, 0.78);
     panel.fillRect(0, 0, 960, 540);
 
-    const title = this.add.text(480, 120, 'Choose 1 Upgrade', {
+    const title = this.add.text(480, 118, opts.title, {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
-      fontSize: '26px',
+      fontSize: '24px',
       color: '#f1f5f9',
     }).setOrigin(0.5);
 
-    const sub = this.add.text(480, 155, `Pick ${this.buffChoicesTaken + 1}/3`, {
+    const sub = this.add.text(480, 150, 'Pick one. It will apply to your next run.', {
       fontFamily: UI_FONT,
       fontSize: '13px',
       color: '#94a3b8',
     }).setOrigin(0.5);
 
     const cards: Phaser.GameObjects.GameObject[] = [];
-    const x0 = 140;
-    const y0 = 210;
     const cw = 220;
-    const ch = 240;
+    const ch = 230;
     const gap = 30;
+    const totalW = NEXT_RUN_BUFF_CHOICES * cw + (NEXT_RUN_BUFF_CHOICES - 1) * gap;
+    const x0 = 480 - totalW / 2;
+    const y0 = 200;
 
     const choose = (id: BuffId) => {
-      this.buffChoicesTaken += 1;
-      this.applyBuff(id);
+      opts.onChoose(id);
       if (this.buffOverlay) {
         this.buffOverlay.destroy(true);
         this.buffOverlay = undefined;
@@ -1244,15 +1259,15 @@ export class GameScene extends Phaser.Scene {
       g.lineStyle(1, T.border, T.borderAlpha);
       g.strokeRoundedRect(x, y, cw, ch, T.r);
 
-      const name = this.add.text(x + cw / 2, y + 48, b.name, {
+      const name = this.add.text(x + cw / 2, y + 44, b.name, {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
-        fontSize: '18px',
+        fontSize: '17px',
         color: '#e2e8f0',
         align: 'center',
       }).setOrigin(0.5);
 
-      const desc = this.add.text(x + 18, y + 86, b.desc, {
+      const desc = this.add.text(x + 18, y + 78, b.desc, {
         fontFamily: UI_FONT,
         fontSize: '14px',
         color: '#cbd5e1',
@@ -1260,7 +1275,10 @@ export class GameScene extends Phaser.Scene {
         lineSpacing: 6,
       }).setOrigin(0, 0);
 
-      const btn = this.add.rectangle(x, y, cw, ch, 0x000000, 0).setOrigin(0).setInteractive({ useHandCursor: true });
+      const btn = this.add
+        .rectangle(x, y, cw, ch, 0x000000, 0)
+        .setOrigin(0)
+        .setInteractive({ useHandCursor: true });
       btn.on('pointerover', () => this.sfx.btnHover());
       btn.on('pointerup', () => choose(b.id));
 
