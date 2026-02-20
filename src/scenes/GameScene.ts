@@ -232,8 +232,7 @@ export class GameScene extends Phaser.Scene {
         color: '#e2e8f0',
         shadow: { offsetX: 0, offsetY: 1, color: 'rgba(0,0,0,0.3)', blur: 3, fill: true },
       })
-      .setDepth(10)
-      .setWordWrapWidth(Math.max(200, hudW - 220));
+      .setDepth(10);
 
     this.updateHud();
 
@@ -902,11 +901,10 @@ export class GameScene extends Phaser.Scene {
     const mobile = this.scale.width < 520;
 
     if (mobile) {
-      // Two-line compact HUD for phones.
+      // Single-line compact HUD for phones (avoid wrapping).
       this.hudText.setFontSize('12px');
-      this.hudText.setText(
-        `Dex ${owned}/${total} · Try ${this.attemptsLeft}/${this.attemptsPerRound}\nLuck +${luckPct}% · Dng ${this.runDanger} · $ ${coins}`,
-      );
+      // Keep it short: prioritize actionable info.
+      this.hudText.setText(`Try ${this.attemptsLeft}/${this.attemptsPerRound} · +${luckPct}% · D${this.runDanger} · $${coins}`);
     } else {
       this.hudText.setFontSize('14px');
       this.hudText.setText(
