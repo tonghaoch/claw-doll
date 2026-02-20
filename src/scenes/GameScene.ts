@@ -982,14 +982,14 @@ export class GameScene extends Phaser.Scene {
 
     const card = this.add.graphics();
     card.fillStyle(T.shadow, T.shadowAlpha);
-    card.fillRoundedRect(243, 154, 480, 260, T.r);
+    card.fillRoundedRect(243, 134, 480, 300, T.r);
     card.fillStyle(T.cardBg, 0.96);
-    card.fillRoundedRect(240, 150, 480, 260, T.r);
+    card.fillRoundedRect(240, 130, 480, 300, T.r);
     card.lineStyle(1, T.border, T.borderAlpha);
-    card.strokeRoundedRect(240, 150, 480, 260, T.r);
+    card.strokeRoundedRect(240, 130, 480, 300, T.r);
 
     const newCount = this.roundNew.size;
-    const title = this.add.text(480, 205, 'Round Over', {
+    const title = this.add.text(480, 178, 'Round Over', {
       fontFamily: UI_FONT,
       fontStyle: 'bold',
       fontSize: '28px',
@@ -997,27 +997,20 @@ export class GameScene extends Phaser.Scene {
       shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,0.3)', blur: 4, fill: true },
     }).setOrigin(0.5);
     const coinsGained = (this.save.coins ?? 0) - (this.coinsAtRoundStart ?? 0);
-    const buffs = this.runBuffs.length ? this.runBuffs.join(', ') : 'None';
     const summary = this.add
-      .text(
-        480,
-        252,
-        `New: ${newCount}   ·   Coins +${coinsGained}\nDanger: ${this.runDanger}   ·   Buffs: ${buffs}`,
-        {
-          fontFamily: UI_FONT,
-          fontSize: '14px',
-          color: '#cbd5e1',
-          align: 'center',
-          lineSpacing: 6,
-        },
-      )
+      .text(480, 220, `New: ${newCount}  ·  Coins +${coinsGained}  ·  Danger ${this.runDanger}  ·  Buffs ${this.runBuffs.length}/3`, {
+        fontFamily: UI_FONT,
+        fontSize: '14px',
+        color: '#cbd5e1',
+        align: 'center',
+      })
       .setOrigin(0.5);
 
     // Simple upgrade shop (permanent, light)
     const overlayObjs: Phaser.GameObjects.GameObject[] = [];
 
     const coinsText = this.add
-      .text(480, 302, `Coins: ${this.save.coins ?? 0}`, {
+      .text(480, 255, `Coins: ${this.save.coins ?? 0}`, {
         fontFamily: UI_FONT,
         fontSize: '13px',
         color: '#94a3b8',
@@ -1032,9 +1025,9 @@ export class GameScene extends Phaser.Scene {
     };
 
     const upgradeLines: { key: keyof typeof costs; label: string; cap: number; y: number }[] = [
-      { key: 'startLuck', label: 'Start Luck', cap: 5, y: 324 },
-      { key: 'attempts', label: 'Extra Tries', cap: 2, y: 344 },
-      { key: 'pity', label: 'Pity Gain', cap: 4, y: 364 },
+      { key: 'startLuck', label: 'Start Luck', cap: 5, y: 282 },
+      { key: 'attempts', label: 'Extra Tries', cap: 2, y: 304 },
+      { key: 'pity', label: 'Pity Gain', cap: 4, y: 326 },
     ];
 
     const upgradeTextObjs: Phaser.GameObjects.Text[] = [];
@@ -1095,9 +1088,9 @@ export class GameScene extends Phaser.Scene {
     // Primary button
     const btnGfx = this.add.graphics();
     btnGfx.fillStyle(0xffb347, 1);
-    btnGfx.fillRoundedRect(400, 340, 160, 44, 22);
+    btnGfx.fillRoundedRect(400, 360, 160, 44, 22);
     const hint = this.add
-      .text(480, 362, 'Tap / Space / Enter', {
+      .text(480, 382, 'Tap / Space / Enter', {
         fontFamily: UI_FONT,
         fontStyle: 'bold',
         fontSize: '16px',
@@ -1135,7 +1128,7 @@ export class GameScene extends Phaser.Scene {
 
     // Tap-to-retry
     const hit = this.add
-      .rectangle(400, 340, 160, 44, 0x000000, 0)
+      .rectangle(400, 360, 160, 44, 0x000000, 0)
       .setOrigin(0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', () => retry());
@@ -1159,7 +1152,11 @@ export class GameScene extends Phaser.Scene {
     const used = this.attemptsPerRound - this.attemptsLeft;
     const idx = (BUFF_MILESTONES as readonly number[]).indexOf(used);
     if (idx >= 0 && this.buffChoicesTaken <= idx && !this.buffOverlay && !this.roundOverlay) {
-      this.showBuffChoiceOverlay();
+      // Delay a bit so the player can see the win/fail feedback first.
+      this.time.delayedCall(650, () => {
+        if (this.buffOverlay || this.roundOverlay) return;
+        this.showBuffChoiceOverlay();
+      });
     }
   }
 
