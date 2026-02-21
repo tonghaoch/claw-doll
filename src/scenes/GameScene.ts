@@ -837,6 +837,21 @@ export class GameScene extends Phaser.Scene {
     else shake(this, 'winN');
 
     this.punchClaw(def.rarity === 'SSR' ? 1.6 : def.rarity === 'SR' ? 1.35 : def.rarity === 'R' ? 1.15 : 1);
+
+    // Give the grabbed doll a little "pop" so the win feels tangible.
+    if (this.grabbed) {
+      const amp = def.rarity === 'SSR' ? 1.18 : def.rarity === 'SR' ? 1.12 : def.rarity === 'R' ? 1.08 : 1.05;
+      const a = def.rarity === 'SSR' ? 0.08 : def.rarity === 'SR' ? 0.055 : def.rarity === 'R' ? 0.035 : 0.02;
+      this.tweens.add({
+        targets: this.grabbed,
+        scale: this.grabbed.scale * amp,
+        angle: this.grabbed.angle + a * 180,
+        duration: 110,
+        ease: 'Back.easeOut',
+        yoyo: true,
+      });
+    }
+
     this.spawnSpark(this.clawX, this.clawY + 44, f.sparks, 28, def.color);
     this.spawnPixelChunks(this.clawX, this.clawY + 44, f.chunks, f.chunkSpread, def.color);
 
@@ -844,16 +859,53 @@ export class GameScene extends Phaser.Scene {
     const rarityHex = Phaser.Display.Color.HexStringToColor(rarityColor[def.rarity]).color;
     this.spawnRingBurst(this.clawX, this.clawY + 44, f.ringSize, rarityHex);
 
-    if (f.flash > 0) {
-      // SSR: colorful screen tint instead of white
-      this.flash.setFillStyle(0xff6e40, 1);
-      this.flash.setAlpha(f.flash * 0.6);
+    // Tiny camera zoom punch (feels "arcade")
+    const cam = this.cameras.main;
+    if (def.rarity === 'SSR' || def.rarity === 'SR') {
+      const z0 = cam.zoom;
+      const z1 = z0 * (def.rarity === 'SSR' ? 1.07 : 1.045);
       this.tweens.add({
-        targets: this.flash,
-        alpha: 0,
-        duration: 500,
-        ease: 'Sine.easeOut',
+        targets: cam,
+        zoom: z1,
+        duration: 90,
+        ease: 'Quad.easeOut',
+        yoyo: true,
       });
+    }
+
+    // Screen flash tint (by rarity)
+    if (def.rarity === 'SSR' || def.rarity === 'SR') {
+      const hex = Phaser.Display.Color.HexStringToColor(rarityColor[def.rarity]).color;
+      // SSR: double pulse; SR: single pulse
+      const a0 = def.rarity === 'SSR' ? 0.42 : 0.28;
+      this.flash.setFillStyle(hex, 1);
+      this.flash.setAlpha(a0);
+
+      if (def.rarity === 'SSR') {
+        // Double pulse via chained tweens (avoid Phaser timeline type differences).
+        this.tweens.add({
+          targets: this.flash,
+          alpha: 0,
+          duration: 160,
+          ease: 'Sine.easeOut',
+        });
+        this.time.delayedCall(175, () => {
+          this.flash.setAlpha(a0 * 0.75);
+          this.tweens.add({
+            targets: this.flash,
+            alpha: 0,
+            duration: 320,
+            ease: 'Sine.easeOut',
+          });
+        });
+      } else {
+        this.tweens.add({
+          targets: this.flash,
+          alpha: 0,
+          duration: 380,
+          ease: 'Sine.easeOut',
+        });
+      }
     }
 
     // SSR rising arpeggio beeps
