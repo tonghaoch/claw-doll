@@ -69,6 +69,10 @@ export class GameScene extends Phaser.Scene {
 
   private flash!: Phaser.GameObjects.Rectangle;
 
+  // Subtle full-screen grading overlays (created in drawScene)
+  private gradeAdd?: Phaser.GameObjects.Rectangle;
+  private gradeMul?: Phaser.GameObjects.Rectangle;
+
   private state: ClawState = 'idle';
   private grabbed?: DollSprite;
   private grabPauseUntil = 0;
@@ -907,6 +911,26 @@ export class GameScene extends Phaser.Scene {
           ease: 'Sine.easeOut',
         });
       }
+
+      // Subtle color grade: slightly deepen shadows (MULTIPLY) and add a colored lift (ADD).
+      // This reads as "modern post" without blurring pixel edges.
+      if (this.gradeAdd && this.gradeMul) {
+        const addA = def.rarity === 'SSR' ? 0.070 : 0.045;
+        const mulA = def.rarity === 'SSR' ? 0.040 : 0.028;
+
+        this.tweens.killTweensOf(this.gradeAdd);
+        this.tweens.killTweensOf(this.gradeMul);
+
+        this.gradeAdd.setFillStyle(hex, 1);
+        this.gradeMul.setFillStyle(0x000000, 1);
+
+        this.gradeAdd.setAlpha(addA);
+        this.gradeMul.setAlpha(mulA);
+
+        // Fade out after the flash
+        this.tweens.add({ targets: this.gradeAdd, alpha: 0, duration: 520, ease: 'Sine.easeOut' });
+        this.tweens.add({ targets: this.gradeMul, alpha: 0, duration: 560, ease: 'Sine.easeOut' });
+      }
     }
 
     // SSR rising arpeggio beeps
@@ -1603,6 +1627,19 @@ export class GameScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
     });
+
+    // ── Color grading overlays (animated on SR/SSR wins) ──────
+    this.gradeMul = this.add
+      .rectangle(0, 0, w, h, 0x000000, 0)
+      .setOrigin(0, 0)
+      .setDepth(955)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+    this.gradeAdd = this.add
+      .rectangle(0, 0, w, h, 0xffffff, 0)
+      .setOrigin(0, 0)
+      .setDepth(956)
+      .setBlendMode(Phaser.BlendModes.ADD);
   }
 
   private spawnGlowBurst(x: number, y: number, color: number, strength: 'sr' | 'ssr') {
