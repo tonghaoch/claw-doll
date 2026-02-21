@@ -855,9 +855,11 @@ export class GameScene extends Phaser.Scene {
     this.spawnSpark(this.clawX, this.clawY + 44, f.sparks, 28, def.color);
     this.spawnPixelChunks(this.clawX, this.clawY + 44, f.chunks, f.chunkSpread, def.color);
 
-    // Ring burst colored by rarity
+    // Ring burst + glow colored by rarity
     const rarityHex = Phaser.Display.Color.HexStringToColor(rarityColor[def.rarity]).color;
     this.spawnRingBurst(this.clawX, this.clawY + 44, f.ringSize, rarityHex);
+    if (def.rarity === 'SSR') this.spawnGlowBurst(this.clawX, this.clawY + 44, rarityHex, 'ssr');
+    else if (def.rarity === 'SR') this.spawnGlowBurst(this.clawX, this.clawY + 44, rarityHex, 'sr');
 
     // Tiny camera zoom punch (feels "arcade")
     const cam = this.cameras.main;
@@ -1499,7 +1501,11 @@ export class GameScene extends Phaser.Scene {
 
   private spawnSpark(x: number, y: number, count = 6, spread = 26, tint?: number) {
     for (let i = 0; i < count; i++) {
-      const s = this.add.image(x, y, 'spark').setScale(Phaser.Math.Between(2, 3));
+      const s = this.add
+        .image(x, y, 'spark')
+        .setScale(Phaser.Math.Between(2, 3))
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(46);
       if (tint != null) s.setTint(tint);
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const dist = Phaser.Math.Between(Math.round(spread * 0.5), spread);
@@ -1515,6 +1521,45 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => s.destroy(),
       });
     }
+  }
+
+  private spawnGlowBurst(x: number, y: number, color: number, strength: 'sr' | 'ssr') {
+    // Fake-bloom glow: re-use a soft dot sprite with ADD blending.
+    // Keep it subtle so the pixel art stays crisp.
+    const base = this.add
+      .image(x, y, 'dust-dot')
+      .setDepth(44)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(color)
+      .setAlpha(strength === 'ssr' ? 0.22 : 0.16)
+      .setScale(strength === 'ssr' ? 5.2 : 4.2);
+
+    this.tweens.add({
+      targets: base,
+      alpha: 0,
+      scale: base.scaleX * (strength === 'ssr' ? 1.35 : 1.25),
+      duration: strength === 'ssr' ? 520 : 420,
+      ease: 'Sine.easeOut',
+      onComplete: () => base.destroy(),
+    });
+
+    // Secondary smaller core pop
+    const core = this.add
+      .image(x, y, 'dust-dot')
+      .setDepth(45)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setTint(0xffffff)
+      .setAlpha(strength === 'ssr' ? 0.18 : 0.12)
+      .setScale(strength === 'ssr' ? 2.2 : 1.9);
+
+    this.tweens.add({
+      targets: core,
+      alpha: 0,
+      scale: core.scaleX * 1.6,
+      duration: strength === 'ssr' ? 360 : 300,
+      ease: 'Sine.easeOut',
+      onComplete: () => core.destroy(),
+    });
   }
 
   private spawnDust() {
@@ -1579,6 +1624,7 @@ export class GameScene extends Phaser.Scene {
 
   private spawnRingBurst(x: number, y: number, radius: number, color: number) {
     const ring = this.add.graphics().setDepth(46);
+    ring.setBlendMode(Phaser.BlendModes.ADD);
     const startR = 4;
     ring.lineStyle(3, color, 0.8);
     ring.strokeCircle(x, y, startR);
@@ -1591,7 +1637,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeOut',
       onUpdate: () => {
         ring.clear();
-        ring.lineStyle(Math.max(1, 3 - obj.r / radius * 2), color, obj.a);
+        ring.lineStyle(Math.max(1, 3 - (obj.r / radius) * 2), color, obj.a);
         ring.strokeCircle(x, y, obj.r);
       },
       onComplete: () => ring.destroy(),
@@ -1837,6 +1883,7 @@ export class GameScene extends Phaser.Scene {
           this.spawnPixelChunks(target.x, target.y, chunks, spread, color);
           this.spawnSpark(target.x, target.y, sparks, Math.round(spread * 0.55), color);
           this.spawnRingBurst(target.x, target.y, def.rarity === 'SSR' ? 60 : 44, color);
+          this.spawnGlowBurst(target.x, target.y, color, def.rarity === 'SSR' ? 'ssr' : 'sr');
 
           // Coin pop: make reward tangible.
           const coins = meta?.coinsAwarded;
