@@ -398,9 +398,8 @@ export class GameScene extends Phaser.Scene {
       this.bgBlobs.push(blob);
     }
 
-    // Vignette + grain overlays
-    this.add.image(w / 2, h / 2, 'vignette').setDepth(1);
-    this.add.image(w / 2, h / 2, 'grain').setDepth(1).setAlpha(0.35);
+    // Vignette + grain overlays (generated; no asset files needed)
+    this.createPostFxOverlays(w, h);
 
     // Animated dust particles
     this.time.addEvent({ delay: 900, loop: true, callback: () => this.spawnDust() });
@@ -1521,6 +1520,89 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => s.destroy(),
       });
     }
+  }
+
+  private createPostFxOverlays(w: number, h: number) {
+    // Keep overlays subtle; they should modernize, not blur pixel art.
+
+    // ── Vignette (soft corner darkening) ──────────────────────
+    const corners: Array<[number, number, number, number]> = [
+      [0, 0, 0, 0],
+      [w, 0, 1, 0],
+      [0, h, 0, 1],
+      [w, h, 1, 1],
+    ];
+
+    for (const [x, y, ox, oy] of corners) {
+      // Two layers per corner to fake a smoother falloff.
+      const a1 = this.add
+        .image(x, y, 'dust-dot')
+        .setOrigin(ox, oy)
+        .setDepth(950)
+        .setBlendMode(Phaser.BlendModes.MULTIPLY)
+        .setTint(0x000000)
+        .setAlpha(0.18)
+        .setScale(Math.max(w, h) / 180);
+
+      const a2 = this.add
+        .image(x, y, 'dust-dot')
+        .setOrigin(ox, oy)
+        .setDepth(950)
+        .setBlendMode(Phaser.BlendModes.MULTIPLY)
+        .setTint(0x000000)
+        .setAlpha(0.10)
+        .setScale(Math.max(w, h) / 110);
+
+      // Avoid affecting input
+      (a1 as any).setInteractive?.(false);
+      (a2 as any).setInteractive?.(false);
+    }
+
+    // A slight top/bottom edge darkening to focus the playfield.
+    const edgeH = Math.round(h * 0.12);
+    const top = this.add.rectangle(0, 0, w, edgeH, 0x000000, 0.10).setOrigin(0, 0).setDepth(949);
+    const bot = this.add
+      .rectangle(0, h - edgeH, w, edgeH, 0x000000, 0.14)
+      .setOrigin(0, 0)
+      .setDepth(949);
+    top.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    bot.setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+    // ── Grain (subtle film noise) ─────────────────────────────
+    const key = 'fx-grain-128';
+    if (!this.textures.exists(key)) {
+      const tex = this.textures.createCanvas(key, 128, 128);
+      if (!tex) return;
+      const ctx = tex.getContext();
+      const img = ctx.createImageData(128, 128);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = (Math.random() * 255) | 0;
+        img.data[i] = v;
+        img.data[i + 1] = v;
+        img.data[i + 2] = v;
+        // Low alpha; final strength is controlled by tilesprite alpha too.
+        img.data[i + 3] = (Math.random() * 65) | 0;
+      }
+      ctx.putImageData(img, 0, 0);
+      tex.refresh();
+    }
+
+    const grain = this.add
+      .tileSprite(0, 0, w, h, key)
+      .setOrigin(0, 0)
+      .setDepth(960)
+      .setAlpha(0.06);
+
+    // Gentle drift so it's not a static pattern.
+    this.tweens.add({
+      targets: grain,
+      tilePositionX: 128,
+      tilePositionY: 64,
+      duration: 6000,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
   }
 
   private spawnGlowBurst(x: number, y: number, color: number, strength: 'sr' | 'ssr') {
