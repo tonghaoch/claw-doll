@@ -1800,6 +1800,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onComplete: () => {
         icon.destroy();
+
         // pulse target
         target.setScale(0.50);
         this.tweens.add({
@@ -1808,6 +1809,7 @@ export class GameScene extends Phaser.Scene {
           duration: 180,
           ease: 'Back.easeOut',
         });
+
         // Flash/glow the first slot on pickup arrival
         if (this.hotbarSlotGlow) {
           this.hotbarSlotGlow.setAlpha(0.6);
@@ -1823,6 +1825,18 @@ export class GameScene extends Phaser.Scene {
           this.time.delayedCall(250, () => {
             if (this.hotbarSlots[0]) this.hotbarSlots[0].setFillStyle(0x0f172a, 0);
           });
+        }
+
+        // Stage-2 celebration: confetti burst at the hotbar when a rare pickup lands.
+        // (This makes SSR feel like a "two-beat" win: grab -> cash-in.)
+        if (def.rarity === 'SSR' || def.rarity === 'SR') {
+          const color = Phaser.Display.Color.HexStringToColor(rarityColor[def.rarity]).color;
+          const chunks = def.rarity === 'SSR' ? 18 : 10;
+          const sparks = def.rarity === 'SSR' ? 10 : 6;
+          const spread = def.rarity === 'SSR' ? 64 : 48;
+          this.spawnPixelChunks(target.x, target.y, chunks, spread, color);
+          this.spawnSpark(target.x, target.y, sparks, Math.round(spread * 0.55), color);
+          this.spawnRingBurst(target.x, target.y, def.rarity === 'SSR' ? 60 : 44, color);
         }
       },
     });
