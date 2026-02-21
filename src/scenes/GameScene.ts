@@ -916,7 +916,7 @@ export class GameScene extends Phaser.Scene {
     this.showToast(`Got! [${rarityLabel(def.rarity)}] ${def.name}`, 1200, rarityColor[def.rarity]);
 
     this.sfx.win(def);
-    this.animatePickupToHotbar(def);
+    this.animatePickupToHotbar(def, { coinsAwarded: baseCoins + newBonus, isNew });
     this.updateHotbar();
     this.updateHud();
 
@@ -1783,7 +1783,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private animatePickupToHotbar(def: DollDef) {
+  private animatePickupToHotbar(def: DollDef, meta?: { coinsAwarded?: number; isNew?: boolean }) {
     // Fly a small icon from claw to first hotbar slot
     if (!this.hotbarIcons?.[0]) return;
     const target = this.hotbarIcons[0];
@@ -1837,6 +1837,37 @@ export class GameScene extends Phaser.Scene {
           this.spawnPixelChunks(target.x, target.y, chunks, spread, color);
           this.spawnSpark(target.x, target.y, sparks, Math.round(spread * 0.55), color);
           this.spawnRingBurst(target.x, target.y, def.rarity === 'SSR' ? 60 : 44, color);
+
+          // Coin pop: make reward tangible.
+          const coins = meta?.coinsAwarded;
+          if (typeof coins === 'number' && coins > 0) {
+            const isNew = !!meta?.isNew;
+            const label = isNew ? `+$${coins} NEW` : `+$${coins}`;
+            const pop = this.add
+              .text(target.x + 18, target.y - 8, label, {
+                fontFamily: UI_FONT,
+                fontSize: def.rarity === 'SSR' ? '16px' : '14px',
+                color: def.rarity === 'SSR' ? '#fde68a' : '#fbbf24',
+                stroke: '#0b1020',
+                strokeThickness: 4,
+              })
+              .setDepth(210)
+              .setOrigin(0, 1);
+
+            pop.setAlpha(def.rarity === 'SSR' ? 1 : 0.95);
+            pop.setScale(def.rarity === 'SSR' ? 1.0 : 0.98);
+
+            this.tweens.add({
+              targets: pop,
+              y: pop.y - (def.rarity === 'SSR' ? 42 : 34),
+              x: pop.x + Phaser.Math.Between(-8, 8),
+              alpha: 0,
+              scale: pop.scale + 0.06,
+              duration: def.rarity === 'SSR' ? 620 : 520,
+              ease: 'Sine.easeOut',
+              onComplete: () => pop.destroy(),
+            });
+          }
         }
       },
     });
