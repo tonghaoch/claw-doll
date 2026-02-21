@@ -118,10 +118,12 @@ export class Sfx {
   }
 
   drop() {
-    // whoosh + click
-    this.noise(26, 0.03, 1200);
-    this.tone(240, 24, 'square', 0.018);
-    this.scene.time.delayedCall(25, () => this.tone(160, 70, 'square', 0.028));
+    // Mechanical "release": whoosh + click + low thunk.
+    // Keep it short so repeated attempts don't fatigue.
+    this.noise(30, 0.030, 1300);
+    this.tone(260, 18, 'square', 0.020);
+    this.scene.time.delayedCall(22, () => this.tone(180, 55, 'square', 0.028));
+    this.scene.time.delayedCall(52, () => this.tone(110, 70, 'sawtooth', 0.016));
   }
 
   clack(def?: DollDef) {
@@ -135,30 +137,80 @@ export class Sfx {
   }
 
   fail() {
-    // click + downward thunk
-    this.noise(20, 0.03, 1100);
-    this.tone(180, 35, 'sawtooth', 0.018);
-    this.scene.time.delayedCall(30, () => this.tone(130, 90, 'sawtooth', 0.03));
+    // "Womp" downward: click + slide down + low thunk.
+    this.noise(18, 0.028, 1200);
+
+    // A short pitch drop (feels more like failure than two static tones).
+    if (!this.isEnabled()) return;
+    const ctx = this.ensureCtx();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(190, t0);
+    osc.frequency.exponentialRampToValueAtTime(120, t0 + 0.10);
+
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.026 * this.gainMul, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+
+    osc.connect(g);
+    g.connect(ctx.destination);
+
+    osc.start(t0);
+    osc.stop(t0 + 0.18);
+
+    // Tail thunk
+    this.scene.time.delayedCall(120, () => this.tone(95, 90, 'sine', 0.018));
   }
 
   win(def: DollDef) {
-    if (def.rarity === 'SSR') {
-      this.tone(880, 120, 'square', 0.055);
-      this.scene.time.delayedCall(90, () => this.tone(1320, 140, 'square', 0.045));
-      this.vibrate([8, 20, 8]);
+    // 4-tier arcade "win" identity:
+    //  - C: short single ding
+    //  - R: two-step up
+    //  - SR: brighter + metallic tick
+    //  - SSR: arpeggio + stronger vibrate
+
+    const r = def.rarity;
+
+    if (r === 'SSR') {
+      // Bright, celebratory arpeggio.
+      this.noise(18, 0.028, 1700);
+      const notes = [988, 1319, 1760, 2093]; // B5, E6, A6, C7-ish
+      notes.forEach((freq, i) => {
+        this.scene.time.delayedCall(i * 70, () => this.tone(freq, 110, 'square', 0.050));
+      });
+      // A final sparkle
+      this.scene.time.delayedCall(320, () => {
+        this.noise(26, 0.022, 2200);
+        this.tone(2637, 90, 'triangle', 0.028);
+      });
+      this.vibrate([10, 24, 10, 18, 10]);
       return;
     }
-    if (def.rarity === 'SR') {
-      this.tone(660, 90, 'square', 0.045);
-      this.scene.time.delayedCall(70, () => this.tone(990, 110, 'square', 0.038));
+
+    if (r === 'SR') {
+      // Brighter 2~3 notes + subtle metallic click.
+      this.noise(16, 0.022, 1600);
+      this.tone(784, 90, 'square', 0.042);
+      this.scene.time.delayedCall(80, () => this.tone(1175, 110, 'square', 0.038));
+      this.scene.time.delayedCall(190, () => this.tone(1568, 90, 'triangle', 0.026));
       // SR: no vibrate by default (avoid feeling spammy)
       return;
     }
-    if (def.rarity === 'R') {
-      this.tone(520, 80, 'square', 0.038);
+
+    if (r === 'R') {
+      // Two-step "ding-ding".
+      this.tone(523, 75, 'square', 0.034);
+      this.scene.time.delayedCall(80, () => this.tone(659, 85, 'square', 0.032));
       return;
     }
-    this.tone(420, 70, 'square', 0.032);
+
+    // Common
+    this.tone(440, 70, 'square', 0.030);
   }
 
   ssrArp() {
